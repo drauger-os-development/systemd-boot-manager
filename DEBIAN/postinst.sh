@@ -21,14 +21,31 @@
 #  MA 02110-1301, USA.
 #  
 #
-fstab=$(grep "^/dev" /etc/fstab)
-IFS="
+set -e
+case "$1" in
+	configure)
+		fstab=$(grep "^/dev" /etc/fstab)
+		IFS="
 "
-for each in $fstab; do
-	check=$(echo "$each" | awk '{print $2}' | grep -vE '/[a-z]')
-	if [ "$check" == "/" ]; then
-		root=$(echo "$each" | awk '{print $1}')
-	fi
-done
-echo "$(blkid -s PARTUUID -o value $root)" > /etc/systemd-boot-manager/UUID.conf
+		for each in $fstab; do
+			check=$(echo "$each" | awk '{print $2}' | grep -vE '/[a-z]')
+			if [ "$check" == "/" ]; then
+				root=$(echo "$each" | awk '{print $1}')
+			fi
+		done
+		echo "$(blkid -s PARTUUID -o value $root)" > /etc/systemd-boot-manager/UUID.conf
+	;;
+	triggered)
+		export SYSTEMD_RELAX_ESP_CHECKS=1
+		echo "Attempting to update systemd-boot version..."
+		bootctl update
+	;;
+	abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+	*)
+        echo "postinst called with unknown argument \`$1'" 1>&2
+        exit 1
+    ;;
+esac
 
+exit 0
