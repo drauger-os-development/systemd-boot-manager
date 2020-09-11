@@ -1,0 +1,10 @@
+Package: systemd-boot-manager
+Version: 0.0.1.alpha0
+Maintainer: Thomas Castleman <contact@draugeros.org>
+Section: admin
+Architecture: all
+Priority: optional
+Depends: bash, coreutils (>=8.28-1ubuntu1), util-linux (>=2.31.1-0.4ubuntu3.3), systemd (>=237-3ubuntu10.24), procps (>=2:3.3.12-3ubuntu1.1), grep (>=3.1-2)
+Description: systemd-boot and kernel version manager
+ Update installed systemd-boot and the kernel used by it the respective packages are updated.
+
