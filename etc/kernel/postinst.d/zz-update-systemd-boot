@@ -7,7 +7,7 @@
 
 
 # The UUID of your disk.
-UUID="8267685c-c13f-4278-9157-636ce327bddf"
+UUID="$(</etc/systemd-boot-manager/UUID.conf)"
 
 # The LUKS volume slug you want to use, which will result in the
 # partition being mounted to /dev/mapper/CHANGEME.
