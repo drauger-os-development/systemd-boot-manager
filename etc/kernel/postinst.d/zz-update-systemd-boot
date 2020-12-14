@@ -3,6 +3,7 @@
 #
 #  zz-update-systemd-boot
 #
+<<<<<<< HEAD
 #  Copyright 2020 Thomas Castleman <contact@draugeros.org>
 #
 #  This program is free software; you can redistribute it and/or modify
@@ -86,6 +87,38 @@ for each in range(len(KERNELS) - 1, -1, -1):
 if len(KERNELS) < 1:
     print(NAME + " " + RED + "ERROR: NO KERNELS FOUND IN /boot" + CLEAR)
     sys.exit(1)
+=======
+
+
+
+# The UUID of your disk.
+UUID="$(</etc/systemd-boot-manager/UUID.conf)"
+
+# The LUKS volume slug you want to use, which will result in the
+# partition being mounted to /dev/mapper/CHANGEME.
+#VOLUME="CHANGEME"
+
+# Any rootflags you wish to set.
+ROOTFLAGS="quiet splash"
+RECOVERY_FLAGS="ro recovery nomodeset"
+
+
+
+# Our kernels.
+KERNELS=()
+FIND=$(ls -A /boot | grep "vmlinuz-*")
+for each in $FIND; do
+    KERNELS+="/boot/$each "
+done
+
+# There has to be at least one kernel.
+if [ ${#KERNELS[@]} -lt 1 ]; then
+    echo -e "\e[2msystemd-boot\e[0m \e[1;31mNo kernels found.\e[0m"
+    exit 1
+fi
+
+
+>>>>>>> 1b675dadc0b56c27d56a4574bd1d5404448af63d
 
 # Perform a nuclear clean to ensure everything is always in perfect sync.
 # We need to make sure we have some error catching here. Hence all the try/except blocks
