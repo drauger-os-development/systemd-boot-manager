@@ -64,6 +64,12 @@ if sys.version_info[0] == 2:
     __eprint__(NAME + "\t" + RED + "ERROR: Please run with Python 3 as Python 2 is End-of-Life." + CLEAR)
     exit(2)
 
+
+def failure():
+    print(NAME + "\t" + RED + "SYSTEMD-BOOT UPDATES FAILED!" + CLEAR)
+
+
+print(NAME + "\t" + YELLOW + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT")
 # Get our UUID
 with open("/etc/systemd-boot-manager/UUID.conf", "r") as uuid_conf:
     UUID = uuid_conf.read()
@@ -85,6 +91,7 @@ for each in range(len(KERNELS) - 1, -1, -1):
 # Check to make sure we have kernels to work with
 if len(KERNELS) < 1:
     print(NAME + " " + RED + "ERROR: NO KERNELS FOUND IN /boot" + CLEAR)
+    failure()
     sys.exit(1)
 
 # Perform a nuclear clean to ensure everything is always in perfect sync.
@@ -98,6 +105,7 @@ for each in DEATH_ROW:
             pass
         except PermissionError:
             __eprint__(NAME + "\t" + RED + "ERROR: CANNOT CLEAN ENTRIES DIRECTORY. RUNNING AS ROOT?")
+            failure()
             sys.exit(2)
 
 try:
@@ -106,6 +114,7 @@ except FileNotFoundError:
     pass
 except PermissionError:
     __eprint__(NAME + "\t" + RED + "ERROR: CANNOT DELETE LOADER DIRECTORY. RUNNING AS ROOT?")
+    failure()
     sys.exit(2)
 
 try:
@@ -114,6 +123,7 @@ except FileExistsError:
     pass
 except PermissionError:
     __eprint__(NAME + "\t" + RED + "ERROR: CANNOT REMAKE LOADER DIRECTORY. RUNNING AS ROOT?")
+    failure()
     sys.exit(2)
 
 
@@ -147,6 +157,7 @@ for FILE in NEEDED_FILES:
         shutil.copyfile(BOOT_DIR + FILE + "-" + LATEST, LOADER_DIR + FILE)
     except PermissionError:
         __eprint__(NAME + "\t" + RED + "ERROR: CANNOT COPY LOADER FILES. RUNNING AS ROOT?")
+        failure()
         sys.exit(2)
 
 # Generate Config Files
@@ -170,6 +181,7 @@ if len(KERNELS) >= 1:
                 shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION, LOADER_DIR + FILE + "-" + VERSION)
             except PermissionError:
                 __eprint__(NAME + "\t" + RED + "ERROR: CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?")
+                failure()
                 sys.exit(2)
         with open(("-" + VERSION).join(CONF_FILE), "w") as output:
             line = 0
