@@ -21,6 +21,7 @@
 #  MA 02110-1301, USA.
 #  
 #
+mkdir -p /etc/systemd-boot-manager
 if [ -f /etc/kernel/postinst.d/zz-update-systemd-boot ]; then
 	UUID=$(grep "^UUID=" /etc/kernel/postinst.d/zz-update-systemd-boot | sed 's/UUID=//' | sed 's/"//g')
 	if [ -f /etc/systemd-boot-manager/UUID.conf ]; then

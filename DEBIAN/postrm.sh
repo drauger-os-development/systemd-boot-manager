@@ -1,7 +1,7 @@
 #!/bin/bash
 # -*- coding: utf-8 -*-
 #
-#  postinst.sh
+#  postrm.sh
 #  
 #  Copyright 2020 Thomas Castleman <contact@draugeros.org>
 #  
@@ -21,28 +21,4 @@
 #  MA 02110-1301, USA.
 #  
 #
-set -e
-case "$1" in
-	configure)
-		if [ -f /etc/systemd-boot-manager/UUID.conf ]; then
-			fstab=$(grep "^/dev" /etc/fstab)
-			IFS="
-"
-			for each in $fstab; do
-				check=$(echo "$each" | awk '{print $2}' | grep -vE '/[a-z]')
-				if [ "$check" == "/" ]; then
-					root=$(echo "$each" | awk '{print $1}')
-				fi
-			done
-			echo "$(blkid -s PARTUUID -o value $root)" > /etc/systemd-boot-manager/UUID.conf
-		fi
-	;;
-	abort-upgrade|abort-remove|abort-deconfigure)
-    ;;
-	*)
-        echo "postinst called with unknown argument \`$1'" 1>&2
-        exit 1
-    ;;
-esac
-
-exit 0
+rm -rf /etc/systemd-boot-manager 1>/dev/null 2>/dev/null
