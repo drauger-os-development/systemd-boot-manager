@@ -1,93 +1,187 @@
-#!/bin/bash
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 #
-# This is a simple kernel hook to populate the systemd-boot entries
-# whenever kernels are added or removed.
+#  zz-update-systemd-boot
 #
+#  Copyright 2020 Thomas Castleman <contact@draugeros.org>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
+#
+"""Explain what this program does here!!!"""
+from __future__ import print_function
+from distutils.version import LooseVersion
+import sys
+import os
+import shutil
+import copy
+
+GREEN = "\033[92m"
+RED = "\033[91m"
+CLEAR = "\033[0m"
+YELLOW = "\033[93m"
+NAME = GREEN + "systemd-boot-manager" + CLEAR
+NEEDED_FILES =["config", "initrd.img", "System.map", "vmlinuz"]
+
+# Important Dirs/Files
+BOOT_DIR = "/boot/"
+CLEAN_DIR = BOOT_DIR + "efi/loader/entries/"
+LOADER_DIR = BOOT_DIR + "efi/Drauger_OS/"
+CONF_FILE = ["/boot/efi/loader/entries/Drauger_OS", ".conf"]
+
+# Default Flags
+ROOT_FLAGS = "quiet splash"
+RECOVERY_FLAGS = "ro recovery nomodeset"
+
+# Default Loader Conf File
+# We have to edit this in several places, multiple different times.
+# Having the default file as a list like this will make that faster
+CONF_FILE_CONTENTS = ["title   Drauger OS", "linux   /Drauger_OS/vmlinuz",
+             "initrd  /Drauger_OS/initrd.img", "options root=PARTUUID="]
 
 
-
-# The UUID of your disk.
-UUID="8267685c-c13f-4278-9157-636ce327bddf"
-
-# The LUKS volume slug you want to use, which will result in the
-# partition being mounted to /dev/mapper/CHANGEME.
-#VOLUME="CHANGEME"
-
-# Any rootflags you wish to set.
-ROOTFLAGS="quiet splash"
-RECOVERY_FLAGS="ro recovery nomodeset"
+# Print to stderr
+def __eprint__(*args, **kwargs):
+    """Make it easier for us to print to stderr"""
+    print(*args, file=sys.stderr, **kwargs)
 
 
+# Check to make sure we are running as Python3, not 2
+if sys.version_info[0] == 2:
+    __eprint__(NAME + "\t" + RED + "ERROR: Please run with Python 3 as Python 2 is End-of-Life." + CLEAR)
+    exit(2)
 
-# Our kernels.
-KERNELS=()
-FIND=$(ls -A /boot | grep "vmlinuz-*")
-for each in $FIND; do
-    KERNELS+="/boot/$each "
-done
+# Get our UUID
+with open("/etc/systemd-boot-manager/UUID.conf", "r") as uuid_conf:
+    UUID = uuid_conf.read()
 
-# There has to be at least one kernel.
-if [ ${#KERNELS[@]} -lt 1 ]; then
-    echo -e "\e[2msystemd-boot\e[0m \e[1;31mNo kernels found.\e[0m"
-    exit 1
-fi
+# Make sure that if there is a trailing new line, we parse it out
+UUID = UUID.split("\n")[0]
 
+# Get our kernels
+KERNELS = os.listdir(BOOT_DIR)
 
+# Filter down to just the Kernel Images
+for each in range(len(KERNELS) - 1, -1, -1):
+    if "vmlinuz-" not in KERNELS[each]:
+        del KERNELS[each]
+    else:
+        # These are kernel images. We need to make this their full file path.
+        KERNELS[each] = BOOT_DIR + KERNELS[each]
+
+# Check to make sure we have kernels to work with
+if len(KERNELS) < 1:
+    print(NAME + " " + RED + "ERROR: NO KERNELS FOUND IN /boot" + CLEAR)
+    sys.exit(1)
 
 # Perform a nuclear clean to ensure everything is always in perfect sync.
-rm /boot/efi/loader/entries/*.conf
-rm -rf /boot/efi/Drauger_OS
-mkdir /boot/efi/Drauger_OS
+# We need to make sure we have some error catching here. Hence all the try/except blocks
+DEATH_ROW = os.listdir(CLEAN_DIR)
+for each in DEATH_ROW:
+    if each[-5:] == ".conf":
+        try:
+            os.remove(CLEAN_DIR + each)
+        except FileNotFoundError:
+            pass
+        except PermissionError:
+            __eprint__(NAME + "\t" + RED + "ERROR: CANNOT CLEAN ENTRIES DIRECTORY. RUNNING AS ROOT?")
+            sys.exit(2)
 
+try:
+    shutil.rmtree(LOADER_DIR)
+except FileNotFoundError:
+    pass
+except PermissionError:
+    __eprint__(NAME + "\t" + RED + "ERROR: CANNOT DELETE LOADER DIRECTORY. RUNNING AS ROOT?")
+    sys.exit(2)
+
+try:
+    os.mkdir(LOADER_DIR)
+except FileExistsError:
+    pass
+except PermissionError:
+    __eprint__(NAME + "\t" + RED + "ERROR: CANNOT REMAKE LOADER DIRECTORY. RUNNING AS ROOT?")
+    sys.exit(2)
 
 
 # Copy the latest kernel files to a consistent place so we can keep
-# using the same loader configuration.
-LATEST="$(echo $KERNELS | sed 's/\/boot\/vmlinuz//g' | sed 's/ /\n/g' | sed 's/.old//g' | sed '/^[[:space:]]*$/d' | sed 's/-//' | sort -Vr | head -n1)"
-LATEST="$(echo $LATEST | sed 's/vmlinuz//')"
-echo -e "\e[2msystemd-boot\e[0m \e[1;32m${LATEST}\e[0m"
-for FILE in config initrd.img System.map vmlinuz; do
-    cp "/boot/${FILE}-${LATEST}" "/boot/efi/Drauger_OS/${FILE}"
-    cat << EOF > /boot/efi/loader/entries/Drauger_OS.conf
-title   Drauger OS
-linux   /Drauger_OS/vmlinuz
-initrd  /Drauger_OS/initrd.img
-options root=PARTUUID=$UUID ${ROOTFLAGS}
-EOF
-    cat << EOF > /boot/efi/loader/entries/Drauger_OS_Recovery.conf
-title   Drauger OS Recovery
-linux   /Drauger_OS/vmlinuz
-initrd  /Drauger_OS/initrd.img
-options root=PARTUUID=$UUID ${RECOVERY_FLAGS}
-EOF
-done
+# using the same loader configuration
+for each in enumerate(KERNELS):
+    KERNELS[each[0]] = KERNELS[each[0]][14:]
+
+try:
+    del KERNELS[KERNELS.index(".old")]
+except ValueError:
+    pass
+
+# Sort remaining kernels, get latest
+KERNELS = sorted(KERNELS, key=LooseVersion)
+LATEST = KERNELS[-1]
+
+# Delete latest kernel from the list, so we don't have two entries for it
+del KERNELS[-1]
+
+# Let the user know what kernel they will be booting with next time
+print(NAME + "\t" + GREEN + LATEST + CLEAR)
+
+# Time for the real work
+# Grab the necessary files
+for FILE in NEEDED_FILES:
+    try:
+        shutil.copyfile(BOOT_DIR + FILE + "-" + LATEST, LOADER_DIR + FILE)
+    except FileExistsError:
+        os.remove(LOADER_DIR + FILE)
+        shutil.copyfile(BOOT_DIR + FILE + "-" + LATEST, LOADER_DIR + FILE)
+    except PermissionError:
+        __eprint__(NAME + "\t" + RED + "ERROR: CANNOT COPY LOADER FILES. RUNNING AS ROOT?")
+        sys.exit(2)
+
+# Generate Config Files
+with open("".join(CONF_FILE), "w") as output:
+    output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + ROOT_FLAGS)
+with open("_Recovery".join(CONF_FILE), "w") as output:
+    output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + RECOVERY_FLAGS)
 
 
+# Legacy Kernel Support
+if len(KERNELS) >= 1:
+    for VERSION in KERNELS:
+        # Let the user know they have a legacy kernel, in case something breaks
+        # And mark it clearly as legacy by putting the "LEGACY" in Yellow, in all caps
+        print(NAME + "\t" + GREEN + VERSION + YELLOW + "\t(LEGACY)" + CLEAR)
+        with open(("-" + VERSION).join(CONF_FILE), "w") as output:
+            line = 0
+            for each in CONF_FILE_CONTENTS:
+                if line == 0:
+                    output.write(each + " " + VERSION + "\n")
+                elif ((line == 1) or (line == 2)):
+                    output.write(each + "-" + VERSION + "\n")
+                else:
+                    output.write(each + UUID + " " + ROOT_FLAGS)
+                line += 1
+        # Also make sure they have Legacy recovery. Cause it can be a life saver.
+        with open(("-" + VERSION + " Recovery").join(CONF_FILE), "w") as output:
+            line = 0
+            for each in CONF_FILE_CONTENTS:
+                if line == 0:
+                    output.write(each + " " + VERSION + " Recovery\n")
+                elif ((line == 1) or (line == 2)):
+                    output.write(each + "-" + VERSION + "\n")
+                else:
+                    output.write(each + UUID + " " + RECOVERY_FLAGS)
+                line += 1
 
-# Copy any legacy kernels over too, but maintain their version-based
-# names to avoid collisions.
-if [ ${#KERNELS[@]} -gt 1 ]; then
-    LEGACY="$(echo $KERNELS | sed 's/\/boot\/vmlinuz//g' | sed 's/ /\n/g' | sed 's/.old//g' | sed '/^[[:space:]]*$/d' | sed 's/-//' | sort -Vr | sed s/$LATEST//g)"
-    for VERSION in ${LEGACY[@]}; do
-        echo -e "\e[2msystemd-boot\e[0m \e[1;32m${VERSION}\e[0m"
-        for FILE in config initrd.img System.map vmlinuz; do
-            cp "/boot/${FILE}-${VERSION}" "/boot/efi/Drauger_OS/${FILE}${VERSION}"
-            cat << EOF > /boot/efi/loader/entries/Drauger_OS-${VERSION}.conf
-title   Drauger OS ${VERSION}
-linux   /Drauger_OS/vmlinuz-${VERSION}
-initrd  /Drauger_OS/initrd.img-${VERSION}
-options root=PARTUUID=$UUID ${ROOTFLAGS}
-EOF
-            cat << EOF > /boot/efi/loader/entries/Drauger_OS_Recovery.conf
-title   Drauger OS ${VERSION} Recovery
-linux   /Drauger_OS/vmlinuz-${VERSION}
-initrd  /Drauger_OS/initrd.img-${VERSION}
-options root=PARTUUID=$UUID ${RECOVERY_FLAGS}
-EOF
-        done
-    done
-fi
-
-
-
-# Success!
+# Finally, we are done! Woot!
