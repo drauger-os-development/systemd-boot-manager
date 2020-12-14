@@ -162,6 +162,15 @@ if len(KERNELS) >= 1:
         # Let the user know they have a legacy kernel, in case something breaks
         # And mark it clearly as legacy by putting the "LEGACY" in Yellow, in all caps
         print(NAME + "\t" + GREEN + VERSION + YELLOW + "\t(LEGACY)" + CLEAR)
+        for FILE in NEEDED_FILES:
+            try:
+                shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION, LOADER_DIR + FILE + "-" + VERSION)
+            except FileExistsError:
+                os.remove(LOADER_DIR + FILE)
+                shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION, LOADER_DIR + FILE + "-" + VERSION)
+            except PermissionError:
+                __eprint__(NAME + "\t" + RED + "ERROR: CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?")
+                sys.exit(2)
         with open(("-" + VERSION).join(CONF_FILE), "w") as output:
             line = 0
             for each in CONF_FILE_CONTENTS:
