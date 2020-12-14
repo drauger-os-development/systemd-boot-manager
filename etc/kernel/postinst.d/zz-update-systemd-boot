@@ -28,6 +28,7 @@ import sys
 import os
 import shutil
 import copy
+import subprocess
 
 GREEN = "\033[92m"
 RED = "\033[91m"
@@ -206,3 +207,14 @@ if len(KERNELS) >= 1:
                 line += 1
 
 # Finally, we are done! Woot!
+# ... With the Kernels ...
+# Now for systemd-boot
+print(NAME + "\t" + YELLOW + "UPDATING SYSTEMD-BOOT VERSIONS" + CLEAR)
+os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
+try:
+    subprocess.check_call(["bootctl", "update"])
+except subprocess.CalledProcessError:
+    print(NAME + "\t" + "ERROR: BOOTCTL HAS HAD AN ERROR!")
+    failure()
+    sys.exit(2)
+print(NAME + "\t" + GREEN + "SYSTEMD-BOOT UPDATES COMPLETE!" + CLEAR)
