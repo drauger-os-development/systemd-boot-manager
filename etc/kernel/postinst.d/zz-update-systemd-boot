@@ -85,6 +85,9 @@ KERNELS = os.listdir(BOOT_DIR)
 for each in range(len(KERNELS) - 1, -1, -1):
     if "vmlinuz-" not in KERNELS[each]:
         del KERNELS[each]
+    # Remove dpkg-tmp images
+    elif ".dpkg-tmp" in KERNELS[each][-9:]:
+        del KERNELS[each]
     else:
         # These are kernel images. We need to make this their full file path.
         KERNELS[each] = BOOT_DIR + KERNELS[each]
