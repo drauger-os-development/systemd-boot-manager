@@ -29,11 +29,13 @@ import os
 import shutil
 import copy
 import subprocess
+import json
 
 GREEN = "\033[92m"
 RED = "\033[91m"
 CLEAR = "\033[0m"
 YELLOW = "\033[93m"
+BLUE = '\033[94m'
 NAME = GREEN + "systemd-boot-manager" + CLEAR
 NEEDED_FILES =["config", "initrd.img", "System.map", "vmlinuz"]
 
@@ -70,13 +72,42 @@ def failure():
     print(NAME + "\t" + RED + "SYSTEMD-BOOT UPDATES FAILED!" + CLEAR)
 
 
-print(NAME + "\t" + YELLOW + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT")
+def get_esp_part_used():
+    used = subprocess.check_output(["du", "-bs", "/boot/efi"]).decode()
+    return int(used.split("\t")[0])
+
+
+print(NAME + "\t" + BLUE + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT")
 # Get our UUID
 with open("/etc/systemd-boot-manager/UUID.conf", "r") as uuid_conf:
     UUID = uuid_conf.read()
 
 # Make sure that if there is a trailing new line, we parse it out
 UUID = UUID.split("\n")[0]
+
+# Get size of /boot/efi partition
+PARTS = json.loads(subprocess.check_output(["lsblk", "--output",
+                                            "TYPE,SIZE,NAME,MOUNTPOINT",
+                                            "--json",
+                                            "--bytes"]).decode())["blockdevices"]
+
+for each in range(len(PARTS) - 1, -1, -1):
+    if ((PARTS[each]["type"] != "disk") or ("children" not in PARTS[each])):
+        del PARTS[each]
+
+ESP_SIZE = 0
+for each in PARTS:
+    for each1 in each["children"]:
+        if "mountpoint" not in each1:
+            continue
+        if each1["mountpoint"] == "/boot/efi":
+            ESP_SIZE = each1["size"]
+            break
+    if ESP_SIZE != 0:
+        break
+
+# Do a quick bit of clean up
+del each, each1, PARTS
 
 # Get our kernels
 KERNELS = os.listdir(BOOT_DIR)
@@ -172,11 +203,17 @@ with open("_Recovery".join(CONF_FILE), "w") as output:
 
 
 # Legacy Kernel Support
+LOW_SPACE_BREAK = False
+LOW_SPACE_LIMIT = 83886080
 if len(KERNELS) >= 1:
     for VERSION in KERNELS:
         # Let the user know they have a legacy kernel, in case something breaks
         # And mark it clearly as legacy by putting the "LEGACY" in Yellow, in all caps
-        print(NAME + "\t" + GREEN + VERSION + YELLOW + "\t(LEGACY)" + CLEAR)
+        REMAINING = ESP_SIZE - get_esp_part_used()
+        if REMAINING < LOW_SPACE_LIMIT:
+            LOW_SPACE_BREAK = True
+            break
+        print(NAME + "\t" + GREEN + VERSION + BLUE + "\t(LEGACY)" + CLEAR)
         for FILE in NEEDED_FILES:
             try:
                 shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION, LOADER_DIR + FILE + "-" + VERSION)
@@ -212,12 +249,21 @@ if len(KERNELS) >= 1:
 # Finally, we are done! Woot!
 # ... With the Kernels ...
 # Now for systemd-boot
-print(NAME + "\t" + YELLOW + "UPDATING SYSTEMD-BOOT VERSIONS" + CLEAR)
+REMAINING = ESP_SIZE - get_esp_part_used()
+if REMAINING < 1048576:
+    print(NAME + "\t" + "ERROR: NOT ENOUGH SPACE ON DRIVE TO UPDATE SYSTEMD-BOOT")
+    failure()
+    exit(1)
+print(NAME + "\t" + BLUE + "UPDATING SYSTEMD-BOOT VERSIONS" + CLEAR)
 os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
 try:
     subprocess.check_call(["bootctl", "update"])
 except subprocess.CalledProcessError:
-    print(NAME + "\t" + "ERROR: BOOTCTL HAS HAD AN ERROR!")
+    print(NAME + "\t" + RED + "ERROR: BOOTCTL HAS HAD AN ERROR!" + CLEAR)
     failure()
     sys.exit(2)
+if LOW_SPACE_BREAK:
+    print(NAME + "\t" + YELLOW + "WARNING: NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS" + CLEAR)
+    print(NAME + "\t" + YELLOW + "WARNING: YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING" + CLEAR)
+    print(NAME + "\t" + YELLOW + "WARNING: ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING." + CLEAR)
 print(NAME + "\t" + GREEN + "SYSTEMD-BOOT UPDATES COMPLETE!" + CLEAR)
