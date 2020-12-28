@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+#  update-systemd-boot
+#
+#  Copyright 2020 Thomas Castleman <contact@draugeros.org>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
+#  MA 02110-1301, USA.
+#
+#
+"""Trigger zz-update-systemd-boot"""
+from __future__ import print_function
+import sys
+import subprocess
+import os
+
+GREEN = "\033[92m"
+RED = "\033[91m"
+CLEAR = "\033[0m"
+YELLOW = "\033[93m"
+BLUE = '\033[94m'
+ERROR = RED + "ERROR: " + CLEAR
+WARNING = YELLOW + "WARNING: " + CLEAR
+
+
+def __eprint__(*args, **kwargs):
+    """Make it easier for us to print to stderr"""
+    print(*args, file=sys.stderr, **kwargs)
+
+
+if sys.version_info[0] == 2:
+    __eprint__(ERROR + "Please run with Python 3 as Python 2 is End-of-Life.")
+    sys.exit(2)
+
+
+def trigger():
+    """Trigger systemd-boot update"""
+    if os.geteuid() != 0:
+        __eprint__(ERROR + "You need to be run this program as root to update systemd-boot.")
+        sys.exit(2)
+    try:
+        subprocess.check_call(["/etc/kernel/postinst.d/zz-update-systemd-boot"])
+    except subprocess.CalledProcessError as err:
+        sys.exit(err.returncode)
+
+
+VERSION = "0.0.4-alpha0"
+HELP = """systemd-boot-manager, Version: %s
+
+\t-h, --help\t\tPrint this help dialog and exit.
+\t-u, --update\t\tUpdate systemd-boot, default action.
+\t-v, --version\t\tPrint current version and exit.""" % (VERSION)
+
+
+
+# get length of argv
+ARGC = len(sys.argv)
+if ARGC >= 2:
+    if sys.argv[1] in ("-h", "--help"):
+        print(HELP)
+        sys.exit(0)
+    elif sys.argv[1] in ("-v", "--version"):
+        print(VERSION)
+        sys.exit(0)
+    elif sys.argv[1] in ("-u", "--update"):
+        trigger()
+    else:
+        __eprint__(ERROR + "Flag: " + sys.argv[1] + " Not understood.")
+        print(HELP)
+        sys.exit(1)
+else:
+    trigger()
