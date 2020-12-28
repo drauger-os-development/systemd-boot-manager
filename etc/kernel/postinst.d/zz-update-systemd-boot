@@ -36,13 +36,18 @@ CLEAR = "\033[0m"
 YELLOW = "\033[93m"
 BLUE = '\033[94m'
 NAME = GREEN + "systemd-boot-manager" + CLEAR
-NEEDED_FILES =["config", "initrd.img", "System.map", "vmlinuz"]
+NEEDED_FILES = ["config", "initrd.img", "System.map", "vmlinuz"]
+WARNING = NAME + "\t" + YELLOW + "WARNING: "
+ERROR = NAME + "\t" + RED + "ERROR: "
+STATUS = NAME + "\t" + BLUE
+SUCCESS = NAME + "\t" + GREEN
 
 # Important Dirs/Files
 BOOT_DIR = "/boot/"
 CLEAN_DIR = BOOT_DIR + "efi/loader/entries/"
 LOADER_DIR = BOOT_DIR + "efi/Drauger_OS/"
 CONF_FILE = ["/boot/efi/loader/entries/Drauger_OS", ".conf"]
+ENTRY_CONF = "/etc/systemd-boot-manager/default_entry.conf"
 
 # Default Flags
 ROOT_FLAGS = "quiet splash"
@@ -63,20 +68,26 @@ def __eprint__(*args, **kwargs):
 
 # Check to make sure we are running as Python3, not 2
 if sys.version_info[0] == 2:
-    __eprint__(NAME + "\t" + RED + "ERROR: Please run with Python 3 as Python 2 is End-of-Life." + CLEAR)
-    exit(2)
+    __eprint__(ERROR + "Please run with Python 3 as Python 2 is End-of-Life." + CLEAR)
+    sys.exit(2)
 
 
-def failure():
-    print(NAME + "\t" + RED + "SYSTEMD-BOOT UPDATES FAILED!" + CLEAR)
+def failure(exit_code):
+    """Consistent Failure output"""
+    __eprint__(NAME + "\t" + RED + "SYSTEMD-BOOT UPDATES FAILED!" + CLEAR)
+    sys.exit(exit_code)
+
+def warning(output):
+    __eprint__(WARNING + output + CLEAR)
 
 
 def get_esp_part_used():
+    """Get amount of ESP partition used"""
     used = subprocess.check_output(["du", "-bs", "/boot/efi"]).decode()
     return int(used.split("\t")[0])
 
 
-print(NAME + "\t" + BLUE + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT")
+print(STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT")
 # Get our UUID
 with open("/etc/systemd-boot-manager/UUID.conf", "r") as uuid_conf:
     UUID = uuid_conf.read()
@@ -124,9 +135,8 @@ for each in range(len(KERNELS) - 1, -1, -1):
 
 # Check to make sure we have kernels to work with
 if len(KERNELS) < 1:
-    print(NAME + " " + RED + "ERROR: NO KERNELS FOUND IN /boot" + CLEAR)
-    failure()
-    sys.exit(1)
+    __eprint__(ERROR + "NO KERNELS FOUND IN /boot" + CLEAR)
+    failure(1)
 
 # Perform a nuclear clean to ensure everything is always in perfect sync.
 # We need to make sure we have some error catching here. Hence all the try/except blocks
@@ -138,27 +148,24 @@ for each in DEATH_ROW:
         except FileNotFoundError:
             pass
         except PermissionError:
-            __eprint__(NAME + "\t" + RED + "ERROR: CANNOT CLEAN ENTRIES DIRECTORY. RUNNING AS ROOT?")
-            failure()
-            sys.exit(2)
+            __eprint__(ERROR + "CANNOT CLEAN ENTRIES DIRECTORY. RUNNING AS ROOT?")
+            failure(2)
 
 try:
     shutil.rmtree(LOADER_DIR)
 except FileNotFoundError:
     pass
 except PermissionError:
-    __eprint__(NAME + "\t" + RED + "ERROR: CANNOT DELETE LOADER DIRECTORY. RUNNING AS ROOT?")
-    failure()
-    sys.exit(2)
+    __eprint__(ERROR + "CANNOT DELETE LOADER DIRECTORY. RUNNING AS ROOT?")
+    failure(2)
 
 try:
     os.mkdir(LOADER_DIR)
 except FileExistsError:
     pass
 except PermissionError:
-    __eprint__(NAME + "\t" + RED + "ERROR: CANNOT REMAKE LOADER DIRECTORY. RUNNING AS ROOT?")
-    failure()
-    sys.exit(2)
+    __eprint__(ERROR + "CANNOT REMAKE LOADER DIRECTORY. RUNNING AS ROOT?")
+    failure(2)
 
 
 # Copy the latest kernel files to a consistent place so we can keep
@@ -190,9 +197,8 @@ for FILE in NEEDED_FILES:
         os.remove(LOADER_DIR + FILE)
         shutil.copyfile(BOOT_DIR + FILE + "-" + LATEST, LOADER_DIR + FILE)
     except PermissionError:
-        __eprint__(NAME + "\t" + RED + "ERROR: CANNOT COPY LOADER FILES. RUNNING AS ROOT?")
-        failure()
-        sys.exit(2)
+        __eprint__(ERROR + "CANNOT COPY LOADER FILES. RUNNING AS ROOT?")
+        failure(2)
 
 # Generate Config Files
 with open("".join(CONF_FILE), "w") as output:
@@ -220,26 +226,25 @@ if len(KERNELS) >= 1:
                 os.remove(LOADER_DIR + FILE)
                 shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION, LOADER_DIR + FILE + "-" + VERSION)
             except PermissionError:
-                __eprint__(NAME + "\t" + RED + "ERROR: CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?")
-                failure()
-                sys.exit(2)
+                __eprint__(ERROR + "CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?")
+                failure(2)
         with open(("-" + VERSION).join(CONF_FILE), "w") as output:
             line = 0
             for each in CONF_FILE_CONTENTS:
                 if line == 0:
                     output.write(each + " " + VERSION + "\n")
-                elif ((line == 1) or (line == 2)):
+                elif line in (1, 2):
                     output.write(each + "-" + VERSION + "\n")
                 else:
                     output.write(each + UUID + " " + ROOT_FLAGS)
                 line += 1
         # Also make sure they have Legacy recovery. Cause it can be a life saver.
-        with open(("-" + VERSION + " Recovery").join(CONF_FILE), "w") as output:
+        with open(("-" + VERSION + "_Recovery").join(CONF_FILE), "w") as output:
             line = 0
             for each in CONF_FILE_CONTENTS:
                 if line == 0:
                     output.write(each + " " + VERSION + " Recovery\n")
-                elif ((line == 1) or (line == 2)):
+                elif line in (1, 2):
                     output.write(each + "-" + VERSION + "\n")
                 else:
                     output.write(each + UUID + " " + RECOVERY_FLAGS)
