@@ -255,19 +255,58 @@ if len(KERNELS) >= 1:
 # Now for systemd-boot
 REMAINING = ESP_SIZE - get_esp_part_used()
 if REMAINING < 1048576:
-    print(NAME + "\t" + "ERROR: NOT ENOUGH SPACE ON DRIVE TO UPDATE SYSTEMD-BOOT")
-    failure()
-    exit(1)
-print(NAME + "\t" + BLUE + "UPDATING SYSTEMD-BOOT VERSIONS" + CLEAR)
+    __eprint__(ERROR + "NOT ENOUGH SPACE ON DRIVE TO UPDATE SYSTEMD-BOOT")
+    failure(1)
+print(STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + CLEAR)
 os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
 try:
     subprocess.check_call(["bootctl", "update"])
 except subprocess.CalledProcessError:
-    print(NAME + "\t" + RED + "ERROR: BOOTCTL HAS HAD AN ERROR!" + CLEAR)
-    failure()
-    sys.exit(2)
+    __eprint__(ERROR + "BOOTCTL HAS HAD AN ERROR!" + CLEAR)
+    failure(2)
+
+# Get default bootloader entry
+DEFAULT = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
+for each in range(len(DEFAULT) - 1, -1, -1):
+    if "title: " not in DEFAULT[each]:
+        del DEFAULT[each]
+        continue
+    if "Reboot Into Firmware Interface" in DEFAULT[each]:
+        del DEFAULT[each]
+        continue
+    DEFAULT[each] = " ".join(DEFAULT[each].split()[1:])
+
+for each in DEFAULT:
+    if "(default)" in each:
+        DEFAULT = " ".join(each.split()[:-1])
+
+# Get just the ID
+DEFAULT = DEFAULT.split("(")[1][:-1]
+
+# Read Default.conf, find what default entry SHOULD be
+# We do this so that if this entry is lost after a CMOS clear, it can be restored.
+INTENDED_DEFAULT = "#"
+if os.path.isfile(ENTRY_CONF):
+    with open(ENTRY_CONF, "r") as conf:
+        INTENDED_DEFAULT = conf.read().split()[0]
+
+# Check default entry, change if needed
+if INTENDED_DEFAULT != "#":
+    if INTENDED_DEFAULT != DEFAULT:
+        warning("WRONG BOOT ENTRY DEFAULT DETECTED")
+        warning("DEFAULT WAS: " + DEFAULT)
+        warning("RESETTING DEFAULT")
+        try:
+            subprocess.check_call(["bootctl", "set-default", INTENDED_DEFAULT])
+        except subprocess.CalledProcessError:
+            __eprint__(ERROR + "CANNOT SET INTENDED DEFAULT" + CLEAR)
+            failure(1)
+        print(SUCCESS + "SUCCESSFULLY RESET DEFAULT BOOT ENTRY" + CLEAR)
+
+
+
 if LOW_SPACE_BREAK:
-    print(NAME + "\t" + YELLOW + "WARNING: NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS" + CLEAR)
-    print(NAME + "\t" + YELLOW + "WARNING: YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING" + CLEAR)
-    print(NAME + "\t" + YELLOW + "WARNING: ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING." + CLEAR)
-print(NAME + "\t" + GREEN + "SYSTEMD-BOOT UPDATES COMPLETE!" + CLEAR)
+    warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS")
+    warning("YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING")
+    warning("ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING.")
+print(SUCCESS + "SYSTEMD-BOOT UPDATES COMPLETE!" + CLEAR)
