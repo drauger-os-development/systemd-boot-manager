@@ -21,13 +21,12 @@
 #  MA 02110-1301, USA.
 #
 #
-"""Explain what this program does here!!!"""
+"""Keep systemd-boot up-to-date with installed kernels and new systemd-boot versions"""
 from __future__ import print_function
 from distutils.version import LooseVersion
 import sys
 import os
 import shutil
-import copy
 import subprocess
 import json
 
@@ -53,7 +52,7 @@ RECOVERY_FLAGS = "ro recovery nomodeset"
 # We have to edit this in several places, multiple different times.
 # Having the default file as a list like this will make that faster
 CONF_FILE_CONTENTS = ["title   Drauger OS", "linux   /Drauger_OS/vmlinuz",
-             "initrd  /Drauger_OS/initrd.img", "options root=PARTUUID="]
+                      "initrd  /Drauger_OS/initrd.img", "options root=PARTUUID="]
 
 
 # Print to stderr
@@ -107,7 +106,7 @@ for each in PARTS:
         break
 
 # Do a quick bit of clean up
-del each, each1, PARTS
+del each, PARTS
 
 # Get our kernels
 KERNELS = os.listdir(BOOT_DIR)
@@ -208,7 +207,7 @@ LOW_SPACE_LIMIT = 83886080
 if len(KERNELS) >= 1:
     for VERSION in KERNELS:
         # Let the user know they have a legacy kernel, in case something breaks
-        # And mark it clearly as legacy by putting the "LEGACY" in Yellow, in all caps
+        # And mark it clearly as legacy by putting the "LEGACY" in Blue, in all caps
         REMAINING = ESP_SIZE - get_esp_part_used()
         if REMAINING < LOW_SPACE_LIMIT:
             LOW_SPACE_BREAK = True
