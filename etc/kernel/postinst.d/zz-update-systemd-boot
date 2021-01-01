@@ -204,9 +204,9 @@ for FILE in NEEDED_FILES:
         failure(2)
 
 # Generate Config Files
-with open("".join(CONF_FILE), "w") as output:
+with open("".join(CONF_FILE), "w+") as output:
     output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + ROOT_FLAGS)
-with open("_Recovery".join(CONF_FILE), "w") as output:
+with open("_Recovery".join(CONF_FILE), "w+") as output:
     output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + RECOVERY_FLAGS)
 
 
@@ -231,7 +231,7 @@ if len(KERNELS) >= 1:
             except PermissionError:
                 __eprint__(ERROR + "CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?")
                 failure(2)
-        with open(("-" + VERSION).join(CONF_FILE), "w") as output:
+        with open(("-" + VERSION).join(CONF_FILE), "w+") as output:
             line = 0
             for each in CONF_FILE_CONTENTS:
                 if line == 0:
@@ -242,7 +242,7 @@ if len(KERNELS) >= 1:
                     output.write(each + UUID + " " + ROOT_FLAGS)
                 line += 1
         # Also make sure they have Legacy recovery. Cause it can be a life saver.
-        with open(("-" + VERSION + "_Recovery").join(CONF_FILE), "w") as output:
+        with open(("-" + VERSION + "_Recovery").join(CONF_FILE), "w+") as output:
             line = 0
             for each in CONF_FILE_CONTENTS:
                 if line == 0:
