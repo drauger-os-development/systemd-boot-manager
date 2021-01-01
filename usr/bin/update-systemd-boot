@@ -35,6 +35,13 @@ BLUE = '\033[94m'
 ERROR = RED + "ERROR: " + CLEAR
 WARNING = YELLOW + "WARNING: " + CLEAR
 
+VERSION = "0.0.5-alpha0"
+HELP = """systemd-boot-manager, Version: %s
+
+\t-h, --help\t\tPrint this help dialog and exit.
+\t-u, --update\t\tUpdate systemd-boot, default action.
+\t-v, --version\t\tPrint current version and exit.""" % (VERSION)
+
 
 def __eprint__(*args, **kwargs):
     """Make it easier for us to print to stderr"""
@@ -55,14 +62,6 @@ def trigger():
         subprocess.check_call(["/etc/kernel/postinst.d/zz-update-systemd-boot"])
     except subprocess.CalledProcessError as err:
         sys.exit(err.returncode)
-
-
-VERSION = "0.0.4-alpha0"
-HELP = """systemd-boot-manager, Version: %s
-
-\t-h, --help\t\tPrint this help dialog and exit.
-\t-u, --update\t\tUpdate systemd-boot, default action.
-\t-v, --version\t\tPrint current version and exit.""" % (VERSION)
 
 
 

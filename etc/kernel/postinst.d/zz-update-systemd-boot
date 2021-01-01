@@ -87,7 +87,7 @@ def get_esp_part_used():
     return int(used.split("\t")[0])
 
 
-print(STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT")
+print(STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT" + CLEAR)
 # Get our UUID
 with open("/etc/systemd-boot-manager/UUID.conf", "r") as uuid_conf:
     UUID = uuid_conf.read()
@@ -140,16 +140,19 @@ if len(KERNELS) < 1:
 
 # Perform a nuclear clean to ensure everything is always in perfect sync.
 # We need to make sure we have some error catching here. Hence all the try/except blocks
-DEATH_ROW = os.listdir(CLEAN_DIR)
-for each in DEATH_ROW:
-    if each[-5:] == ".conf":
-        try:
-            os.remove(CLEAN_DIR + each)
-        except FileNotFoundError:
-            pass
-        except PermissionError:
-            __eprint__(ERROR + "CANNOT CLEAN ENTRIES DIRECTORY. RUNNING AS ROOT?")
-            failure(2)
+try:
+    DEATH_ROW = os.listdir(CLEAN_DIR)
+    for each in DEATH_ROW:
+        if each[-5:] == ".conf":
+            try:
+                os.remove(CLEAN_DIR + each)
+            except FileNotFoundError:
+                pass
+            except PermissionError:
+                __eprint__(ERROR + "CANNOT CLEAN ENTRIES DIRECTORY. RUNNING AS ROOT?")
+                failure(2)
+except FileNotFoundError:
+    warning("PREVIOUS ENTRIES NOT FOUND. NOT CLEANING.")
 
 try:
     shutil.rmtree(LOADER_DIR)
