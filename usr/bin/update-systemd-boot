@@ -35,7 +35,7 @@ BLUE = '\033[94m'
 ERROR = RED + "ERROR: " + CLEAR
 WARNING = YELLOW + "WARNING: " + CLEAR
 
-VERSION = "0.0.6-alpha0"
+VERSION = "0.0.7-alpha0"
 HELP = """systemd-boot-manager, Version: %s
 
 \t-h, --help\t\tPrint this help dialog and exit.

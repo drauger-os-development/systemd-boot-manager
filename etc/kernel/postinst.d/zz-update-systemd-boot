@@ -203,6 +203,19 @@ for FILE in NEEDED_FILES:
         __eprint__(ERROR + "CANNOT COPY LOADER FILES. RUNNING AS ROOT?")
         failure(2)
 
+# Make sure directory structure is good
+if not os.path.exists(CLEAN_DIR):
+    dir = ""
+    for each in CLEAN_DIR.split("/"):
+        if dir == "/":
+            dir = dir + each
+        else:
+            dir = dir + "/" + each
+        try:
+            os.mkdir(dir)
+        except FileExistsError:
+            pass
+            
 # Generate Config Files
 with open("".join(CONF_FILE), "w+") as output:
     output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + ROOT_FLAGS)
