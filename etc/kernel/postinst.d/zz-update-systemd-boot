@@ -99,7 +99,7 @@ UUID = UUID.split("\n")[0]
 PARTS = json.loads(subprocess.check_output(["lsblk", "--output",
                                             "TYPE,SIZE,NAME,MOUNTPOINT",
                                             "--json",
-                                            "--bytes"]).decode())["blockdevices"]
+                                            "--bytes"]).decode().replace("I","i"))["blockdevices"]
 
 for each in range(len(PARTS) - 1, -1, -1):
     if ((PARTS[each]["type"] != "disk") or ("children" not in PARTS[each])):
