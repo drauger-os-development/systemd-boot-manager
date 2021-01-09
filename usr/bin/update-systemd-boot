@@ -35,10 +35,12 @@ BLUE = '\033[94m'
 ERROR = RED + "ERROR: " + CLEAR
 WARNING = YELLOW + "WARNING: " + CLEAR
 
-VERSION = "0.0.7-alpha0"
+VERSION = "0.0.8-alpha0"
 HELP = """systemd-boot-manager, Version: %s
 
+\t-c, --check\t\tCheck systemd-boot-manager settings. (Not yet implemented)
 \t-h, --help\t\tPrint this help dialog and exit.
+\t-r, --repair\t\tRepair systemd-boot-manager settings and systemd-boot. (Not yet implemented)
 \t-u, --update\t\tUpdate systemd-boot, default action.
 \t-v, --version\t\tPrint current version and exit.""" % (VERSION)
 
@@ -64,18 +66,45 @@ def trigger():
         sys.exit(err.returncode)
 
 
+def generate_settings(default_entry=None):
+    """Generate settings based off the current system,
+    Or, passed settings
+    """
+    __eprint__(RED + "NOT YET IMPLEMENTED" + CLEAR)
+    sys.exit(1)
+
+
+def delete_settings():
+    """delete current settings, after making a back up"""
+    __eprint__(RED + "NOT YET IMPLEMENTED" + CLEAR)
+    sys.exit(1)
+
+
+def check():
+    """Check systemd-boot-manager settings"""
+    __eprint__(RED + "NOT YET IMPLEMENTED" + CLEAR)
+    sys.exit(1)
+
+
+def repair():
+    """Repair systemd-boot-manager and systemd-boot settings"""
+    __eprint__(RED + "NOT YET IMPLEMENTED" + CLEAR)
+    sys.exit(1)
+
 
 # get length of argv
 ARGC = len(sys.argv)
 if ARGC >= 2:
     if sys.argv[1] in ("-h", "--help"):
         print(HELP)
-        sys.exit(0)
     elif sys.argv[1] in ("-v", "--version"):
         print(VERSION)
-        sys.exit(0)
     elif sys.argv[1] in ("-u", "--update"):
         trigger()
+    elif sys.argv[1] in ("-c", "--check"):
+        check()
+    elif sys.argv[1] in ("-r", "--repair"):
+        repair()
     else:
         __eprint__(ERROR + "Flag: " + sys.argv[1] + " Not understood.")
         print(HELP)
