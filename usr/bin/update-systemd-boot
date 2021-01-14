@@ -26,6 +26,7 @@ from __future__ import print_function
 import sys
 import subprocess
 import os
+import json
 
 GREEN = "\033[92m"
 RED = "\033[91m"
@@ -34,6 +35,10 @@ YELLOW = "\033[93m"
 BLUE = '\033[94m'
 ERROR = RED + "ERROR: " + CLEAR
 WARNING = YELLOW + "WARNING: " + CLEAR
+
+CONFIG_DIR = "/etc/systemd-boot-manager"
+UUID_FILE = CONFIG_DIR + "/UUID.conf"
+DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
 
 VERSION = "0.0.8-alpha0"
 HELP = """systemd-boot-manager, Version: %s
@@ -66,6 +71,56 @@ def trigger():
         sys.exit(err.returncode)
 
 
+def get_UUID():
+    """Get UUID for the root partition"""
+    # Get root partition
+    root_part = ""
+    devices = json.loads(subprocess.check_output(["lsblk", "--output",
+                                                  "NAME,MOUNTPOINT",
+                                                  "--json",
+                                                  "--paths"]).decode().replace("I", "i"))
+    devices = devices["blockdevices"]
+    for each in range(len(devices) - 1, -1, -1):
+        if "loop" in devices[each]["name"]:
+            del devices[each]
+    for each in devices:
+        if "children" in each:
+            for each1 in each["children"]:
+                if each1["mountpoint"] == "/":
+                    root_part = each1["name"]
+                    break
+        if root_part != "":
+            break
+    # Clean up
+    del devices
+    # Get our UUID
+    uuid = subprocess.check_output(["blkid", "-s", "PARTUUID", "-o",
+                                    "value", root_part]).decode()[:-1]
+    return uuid
+
+
+def get_default_boot_entry():
+    """Get default bootloader entry"""
+    DEFAULT = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
+    for each in range(len(DEFAULT) - 1, -1, -1):
+        if "title: " not in DEFAULT[each]:
+            del DEFAULT[each]
+            continue
+        if "Reboot Into Firmware Interface" in DEFAULT[each]:
+            del DEFAULT[each]
+            continue
+        DEFAULT[each] = " ".join(DEFAULT[each].split()[1:])
+
+    for each in DEFAULT:
+        if "(default)" in each:
+            DEFAULT = " ".join(each.split()[:-1])
+
+    # Get just the ID
+    DEFAULT = DEFAULT.split("(")[1][:-1]
+
+    return DEFAULT
+
+
 def generate_settings(default_entry=None):
     """Generate settings based off the current system,
     Or, passed settings
@@ -82,8 +137,30 @@ def delete_settings():
 
 def check():
     """Check systemd-boot-manager settings"""
-    __eprint__(RED + "NOT YET IMPLEMENTED" + CLEAR)
-    sys.exit(1)
+    # This is like a report for use to use to explain to the user later
+    # How their config is doing
+    checks = {"UUID":None, "DEFAULT": None}
+    if os.path.isfile(UUID_FILE):
+        with open(UUID_FILE, "r") as conf:
+            uuid_stored = conf.read()
+        if uuid_stored[-1] == "\n":
+            uuid_stored = uuid_stored[:-1]
+        uuid_generated = get_UUID()
+        if uuid_stored == uuid_generated:
+            checks["UUID"] = True
+        else:
+            checks["UUID"] = False
+    if os.path.isfile(DEFAULTS_FILE):
+        intended_default = "#"
+        with open(DEFAULTS_FILE, "r") as conf:
+            intended_default = conf.read().split()[0]
+        default = get_default_boot_entry()
+        if default == intended_default:
+            checks["DEFAULT"] = True
+        elif intended_default != "#":
+            checks["DEFAULT"] = False
+
+    return checks
 
 
 def repair():
@@ -102,7 +179,29 @@ if ARGC >= 2:
     elif sys.argv[1] in ("-u", "--update"):
         trigger()
     elif sys.argv[1] in ("-c", "--check"):
-        check()
+        print(BLUE + "RUNNING CONFIGURATION CHECKS" + CLEAR)
+        print("-" * 20, "\n")
+        report = check()
+        errors = 0
+        for each in report:
+            if each == "UUID":
+                if report["UUID"]:
+                    print(BLUE + "UUID: " + GREEN + "GOOD" + CLEAR)
+                else:
+                    print(BLUE + "UUID: " + RED + "MISMATCH" + CLEAR)
+                    errors += 1
+            if each == "DEFAULT":
+                if report["DEFAULT"] is True:
+                    print(BLUE + "DEFAULT BOOTLOADER ENTRY: " + GREEN + "GOOD" + CLEAR)
+                elif report["DEFAULT"] is False:
+                    print(BLUE + "DEFAULT BOOTLOADER ENTRY: " + RED + "MISMATCH" + CLEAR)
+                    errors += 1
+                else:
+                    print(BLUE + "DEFAULT BOOTLOADER ENTRY: " + YELLOW + "NOT CONTROLLING" + CLEAR)
+        if errors != 0:
+            print(RED + "\nTHERE ARE ERRORS!\n" + CLEAR)
+            print("We suggest running `sudo update-systemd-boot --repair' to fix these issues.")
+            sys.exit(1)
     elif sys.argv[1] in ("-r", "--repair"):
         repair()
     else:
