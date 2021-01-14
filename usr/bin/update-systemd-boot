@@ -46,7 +46,7 @@ HELP = """systemd-boot-manager, Version: %s
 \t-c, --check\t\t\t\tCheck systemd-boot-manager settings.
 \t-d, --default [bootloader entry]\tSet as default bootloader entry.  (Not yet implemented)
 \t-h, --help\t\t\t\tPrint this help dialog and exit.
-\t-l, --list\t\t\t\tList all bootloader entries.  (Not yet implemented)
+\t-l, --list\t\t\t\tList all bootloader entries.
 \t-r, --repair\t\t\t\tRepair systemd-boot-manager settings and systemd-boot.
 \t-u, --update\t\t\t\tUpdate systemd-boot, default action.
 \t-v, --version\t\t\t\tPrint current version and exit.""" % (VERSION)
@@ -101,18 +101,22 @@ def get_UUID():
     return uuid
 
 
-def get_default_boot_entry():
-    """Get default bootloader entry"""
+def get_boot_entries():
+    """Get bootloader entries"""
     DEFAULT = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
     for each in range(len(DEFAULT) - 1, -1, -1):
         if "title: " not in DEFAULT[each]:
             del DEFAULT[each]
             continue
+         DEFAULT[each] = " ".join(DEFAULT[each].split()[1:])
+
+
+def get_default_boot_entry():
+    """Get default bootloader entry"""
+    DEFAULT = get_boot_entries()
+    for each in range(len(DEFAULT) - 1, -1, -1):    
         if "Reboot Into Firmware Interface" in DEFAULT[each]:
             del DEFAULT[each]
-            continue
-        DEFAULT[each] = " ".join(DEFAULT[each].split()[1:])
-
     for each in DEFAULT:
         if "(default)" in each:
             DEFAULT = " ".join(each.split()[:-1])
@@ -214,6 +218,12 @@ def repair():
     generate_settings(UUID, default_entry=default_entry)
     print("\n")
     check()
+    
+    
+def set_as_default_entry(entry):
+    """Set 'entry' as the default bootloader entry"""
+    __eprint__(ERROR + "NOT IMPLEMENTED YET." + CLEAR)
+    sys.exit(1)
 
 
 # get length of argv
@@ -229,6 +239,20 @@ if ARGC >= 2:
         check()
     elif sys.argv[1] in ("-r", "--repair"):
         repair()
+    elif sys.argv[1] in ("-l", "--list"):
+        entries = get_boot_entries()
+        print(BLUE + "BOOT LOADER ENTRIES" + CLEAR)
+        print("-" * 20, "\n)
+        for each in entries:
+            if type(each) == str:
+                print("\t-  " + each)
+            elif type(each) == list:
+                print("\t-  " + each[0])
+    elif sys.argv[1] in ("-d", "--default"):
+        if len(sys.argv) < 3:
+              __eprint__(ERROR + "No default specified." + CLEAR)
+              sys.exit(2)
+        set_as_default_entry(sys.argv[2])
     else:
         __eprint__(ERROR + "Flag: " + sys.argv[1] + " Not understood.")
         print(HELP)
