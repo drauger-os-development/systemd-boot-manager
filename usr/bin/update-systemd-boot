@@ -266,7 +266,7 @@ if ARGC >= 2:
     elif sys.argv[1] in ("-l", "--list"):
         entries = get_boot_entries()
         print(BLUE + "BOOT LOADER ENTRIES" + CLEAR)
-        print("-" * 20, "\n)
+        print("-" * 20, "\n")
         for each in entries:
             if type(each) == str:
                 print("\t-  " + each)
