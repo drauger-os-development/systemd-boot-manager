@@ -121,6 +121,7 @@ def get_boot_entries():
             del DEFAULT[each]
             continue
         DEFAULT[each] = " ".join(DEFAULT[each].split()[1:])
+    return DEFAULT
 
 
 def get_default_boot_entry():
