@@ -120,7 +120,7 @@ def get_boot_entries():
         if "title: " not in DEFAULT[each]:
             del DEFAULT[each]
             continue
-         DEFAULT[each] = " ".join(DEFAULT[each].split()[1:])
+        DEFAULT[each] = " ".join(DEFAULT[each].split()[1:])
 
 
 def get_default_boot_entry():
