@@ -77,10 +77,16 @@ def get_UUID():
     """Get UUID for the root partition"""
     # Get root partition
     root_part = ""
-    devices = json.loads(subprocess.check_output(["lsblk", "--output",
-                                                  "NAME,MOUNTPOINT",
-                                                  "--json",
-                                                  "--paths"]).decode().replace("I", "i"))
+    try:
+        devices = json.loads(subprocess.check_output(["lsblk", "--output",
+                                                      "NAME,MOUNTPOINT",
+                                                      "--json",
+                                                      "--paths"]).decode().replace("I", "i"))
+    except subprocess.CalledProcessError as err:
+        __eprint__(ERROR + "CANNOT GET ROOT PARTITION UUID. LSBLK FAILED." + CLEAR)
+        __eprint__("The error was: ")
+        __eprint__(err.output)
+        sys.exit(err.returncode)
     devices = devices["blockdevices"]
     for each in range(len(devices) - 1, -1, -1):
         if "loop" in devices[each]["name"]:
@@ -96,8 +102,14 @@ def get_UUID():
     # Clean up
     del devices
     # Get our UUID
-    uuid = subprocess.check_output(["blkid", "-s", "PARTUUID", "-o",
-                                    "value", root_part]).decode()[:-1]
+    try:
+        uuid = subprocess.check_output(["blkid", "-s", "PARTUUID", "-o",
+                                        "value", root_part]).decode()[:-1]
+    except subprocess.CalledProcessError as err:
+        __eprint__(ERROR + "CANNOT GET ROOT PARTITION UUID. BLKID FAILED." + CLEAR)
+        __eprint__("The error was: ")
+        __eprint__(err.output)
+        sys.exit(err.returncode)
     return uuid
 
 
@@ -141,15 +153,27 @@ def generate_settings(uuid, default_entry=None):
     #
     # If you don't want systemd-boot-manager changing the default entry, just comment that
     # first line out and it will not do anything."""
-    with open(UUID_FILE, "w") as conf:
-        conf.write(uuid)
-    with open(DEFAULTS_FILE, "w") as conf:
-        if default_entry is not None:
-            conf.write(default_entry)
-        else:
-            conf.write("# Drauger_OS.conf")
-        conf.write("\n")
-        conf.write(DEFAULTS_FILE_ADDON)
+    try:
+        with open(UUID_FILE, "w") as conf:
+            conf.write(uuid)
+    except (FileNotFoundError, PermissionError) as err:
+        __eprint__(ERROR + "An Unwarrented error has occured. Please try again later." + CLEAR)
+        __eprint__("The error reported was:")
+        __eprint__(err.output)
+        sys.exit(err.returncode)
+    try:
+        with open(DEFAULTS_FILE, "w") as conf:
+            if default_entry is not None:
+                conf.write(default_entry)
+            else:
+                conf.write("# Drauger_OS.conf")
+            conf.write("\n")
+            conf.write(DEFAULTS_FILE_ADDON)
+    except (FileNotFoundError, PermissionError) as err:
+        __eprint__(ERROR + "An Unwarrented error has occured. Please try again later." + CLEAR)
+        __eprint__("The error reported was:")
+        __eprint__(err.output)
+        sys.exit(err.returncode)
 
 
 def check():
