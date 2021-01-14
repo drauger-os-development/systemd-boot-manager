@@ -63,7 +63,7 @@ if sys.version_info[0] == 2:
 def trigger():
     """Trigger systemd-boot update"""
     if os.geteuid() != 0:
-        __eprint__(ERROR + "You need to be run this program as root to update systemd-boot.")
+        __eprint__(ERROR + "You need to be run this program as root to update systemd-boot." + CLEAR)
         sys.exit(2)
     try:
         subprocess.check_call(["/etc/kernel/postinst.d/zz-update-systemd-boot"])
@@ -121,25 +121,36 @@ def get_default_boot_entry():
     return DEFAULT
 
 
-def generate_settings(default_entry=None):
+def generate_settings(uuid, default_entry=None):
     """Generate settings based off the current system,
     Or, passed settings
     """
-    __eprint__(RED + "NOT YET IMPLEMENTED" + CLEAR)
-    sys.exit(1)
-
-
-def delete_settings():
-    """delete current settings, after making a back up"""
-    __eprint__(RED + "NOT YET IMPLEMENTED" + CLEAR)
-    sys.exit(1)
+    DEFAULTS_FILE_ADDON = """# This file defines the default boot entry that systemd-boot should be using.
+    # It only reads the first line, but these other lines are being commented out like
+    # in a shell script because if this file gets renamed and used for other purposes,
+    # then this syntax will be honored
+    #
+    # That first line needs to be the Entry ID you want to be default from
+    # `bootctl list`
+    #
+    # If you don't want systemd-boot-manager changing the default entry, just comment that
+    # first line out and it will not do anything."""
+    with open(UUID_FILE, "w") as conf:
+        conf.write(uuid)
+    with open(DEFAULTS_FILE, "w") as conf:
+        if default_entry is not None:
+            conf.write(default_entry)
+        else:
+            conf.write("# Drauger_OS.conf")
+        conf.write("\n")
+        conf.write(DEFAULTS_FILE_ADDON)
 
 
 def check():
     """Check systemd-boot-manager settings"""
     # This is like a report for use to use to explain to the user later
     # How their config is doing
-    checks = {"UUID":None, "DEFAULT": None}
+    report = {"UUID":None, "DEFAULT": None}
     if os.path.isfile(UUID_FILE):
         with open(UUID_FILE, "r") as conf:
             uuid_stored = conf.read()
@@ -147,26 +158,60 @@ def check():
             uuid_stored = uuid_stored[:-1]
         uuid_generated = get_UUID()
         if uuid_stored == uuid_generated:
-            checks["UUID"] = True
+            report["UUID"] = True
         else:
-            checks["UUID"] = False
+            report["UUID"] = False
     if os.path.isfile(DEFAULTS_FILE):
         intended_default = "#"
         with open(DEFAULTS_FILE, "r") as conf:
             intended_default = conf.read().split()[0]
         default = get_default_boot_entry()
         if default == intended_default:
-            checks["DEFAULT"] = True
+            report["DEFAULT"] = True
         elif intended_default != "#":
-            checks["DEFAULT"] = False
+            report["DEFAULT"] = False
 
-    return checks
+    print(BLUE + "RUNNING CONFIGURATION CHECKS" + CLEAR)
+    print("-" * 20, "\n")
+    errors = 0
+    for each in report:
+        if each == "UUID":
+            if report["UUID"]:
+                print(BLUE + "UUID: " + GREEN + "GOOD" + CLEAR)
+            else:
+                print(BLUE + "UUID: " + RED + "MISMATCH" + CLEAR)
+                errors += 1
+        if each == "DEFAULT":
+            if report["DEFAULT"] is True:
+                print(BLUE + "DEFAULT BOOTLOADER ENTRY: " + GREEN + "GOOD" + CLEAR)
+            elif report["DEFAULT"] is False:
+                print(BLUE + "DEFAULT BOOTLOADER ENTRY: " + RED + "MISMATCH" + CLEAR)
+                errors += 1
+            else:
+                print(BLUE + "DEFAULT BOOTLOADER ENTRY: " + YELLOW + "NOT CONTROLLING" + CLEAR)
+    if errors != 0:
+        print(RED + "\nTHERE ARE ERRORS!\n" + CLEAR)
+        print("We suggest running `sudo update-systemd-boot --repair' to fix these issues.")
+        sys.exit(1)
 
 
 def repair():
     """Repair systemd-boot-manager and systemd-boot settings"""
-    __eprint__(RED + "NOT YET IMPLEMENTED" + CLEAR)
-    sys.exit(1)
+    if os.geteuid() != 0:
+        __eprint__(ERROR + "You need to be run this program as root to repair your settings." + CLEAR)
+        sys.exit(2)
+    print(BLUE + "INITIATING CONFIGURATION REPAIR" + CLEAR)
+    print("-" * 20, "\n")
+    # Get UUID
+    print(BLUE + "GETTING APPRORIATE SETTINGS" + CLEAR)
+    UUID = get_UUID()
+    # Get default entry
+    default_entry = get_default_boot_entry()
+    # Make them permanent
+    print(BLUE + "WRITING SETTINGS TO DISK" + CLEAR)
+    generate_settings(UUID, default_entry=default_entry)
+    print("\n")
+    check()
 
 
 # get length of argv
@@ -179,29 +224,7 @@ if ARGC >= 2:
     elif sys.argv[1] in ("-u", "--update"):
         trigger()
     elif sys.argv[1] in ("-c", "--check"):
-        print(BLUE + "RUNNING CONFIGURATION CHECKS" + CLEAR)
-        print("-" * 20, "\n")
-        report = check()
-        errors = 0
-        for each in report:
-            if each == "UUID":
-                if report["UUID"]:
-                    print(BLUE + "UUID: " + GREEN + "GOOD" + CLEAR)
-                else:
-                    print(BLUE + "UUID: " + RED + "MISMATCH" + CLEAR)
-                    errors += 1
-            if each == "DEFAULT":
-                if report["DEFAULT"] is True:
-                    print(BLUE + "DEFAULT BOOTLOADER ENTRY: " + GREEN + "GOOD" + CLEAR)
-                elif report["DEFAULT"] is False:
-                    print(BLUE + "DEFAULT BOOTLOADER ENTRY: " + RED + "MISMATCH" + CLEAR)
-                    errors += 1
-                else:
-                    print(BLUE + "DEFAULT BOOTLOADER ENTRY: " + YELLOW + "NOT CONTROLLING" + CLEAR)
-        if errors != 0:
-            print(RED + "\nTHERE ARE ERRORS!\n" + CLEAR)
-            print("We suggest running `sudo update-systemd-boot --repair' to fix these issues.")
-            sys.exit(1)
+        check()
     elif sys.argv[1] in ("-r", "--repair"):
         repair()
     else:
