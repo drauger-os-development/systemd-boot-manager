@@ -43,11 +43,13 @@ DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
 VERSION = "0.0.8-alpha0"
 HELP = """systemd-boot-manager, Version: %s
 
-\t-c, --check\t\tCheck systemd-boot-manager settings. (Not yet implemented)
-\t-h, --help\t\tPrint this help dialog and exit.
-\t-r, --repair\t\tRepair systemd-boot-manager settings and systemd-boot. (Not yet implemented)
-\t-u, --update\t\tUpdate systemd-boot, default action.
-\t-v, --version\t\tPrint current version and exit.""" % (VERSION)
+\t-c, --check\t\t\t\tCheck systemd-boot-manager settings.
+\t-d, --default [bootloader entry]\tSet as default bootloader entry.  (Not yet implemented)
+\t-h, --help\t\t\t\tPrint this help dialog and exit.
+\t-l, --list\t\t\t\tList all bootloader entries.  (Not yet implemented)
+\t-r, --repair\t\t\t\tRepair systemd-boot-manager settings and systemd-boot.
+\t-u, --update\t\t\t\tUpdate systemd-boot, default action.
+\t-v, --version\t\t\t\tPrint current version and exit.""" % (VERSION)
 
 
 def __eprint__(*args, **kwargs):
