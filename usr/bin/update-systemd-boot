@@ -44,7 +44,7 @@ VERSION = "0.0.8-alpha0"
 HELP = """systemd-boot-manager, Version: %s
 
 \t-c, --check\t\t\t\tCheck systemd-boot-manager settings.
-\t-d, --default [bootloader entry]\tSet as default bootloader entry.  (Not yet implemented)
+\t-d, --default [bootloader entry]\tSet as default bootloader entry.
 \t-h, --help\t\t\t\tPrint this help dialog and exit.
 \t-l, --list\t\t\t\tList all bootloader entries.
 \t-r, --repair\t\t\t\tRepair systemd-boot-manager settings and systemd-boot.
@@ -115,35 +115,32 @@ def get_UUID():
 
 def get_boot_entries():
     """Get bootloader entries"""
-    DEFAULT = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
-    for each in range(len(DEFAULT) - 1, -1, -1):
-        if "title: " not in DEFAULT[each]:
-            del DEFAULT[each]
-            continue
-        DEFAULT[each] = " ".join(DEFAULT[each].split()[1:])
-    return DEFAULT
+    entries = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
+    output = {}
+    name = ""
+    for each in entries:
+        if "title: " in each:
+            if "(default)" in each:
+                output[" ".join(each.split()[1:])[:-10]] = {"default":True}
+                name = " ".join(each.split()[1:])[:-10]
+            else:
+                output[" ".join(each.split()[1:])] = {"default":False}
+                name = " ".join(each.split()[1:])
+        elif "id: " in each:
+            output[name]["id"] = each.split()[-1]
+    return output
 
 
 def get_default_boot_entry():
     """Get default bootloader entry"""
-    DEFAULT = get_boot_entries()
-    for each in range(len(DEFAULT) - 1, -1, -1):    
-        if "Reboot Into Firmware Interface" in DEFAULT[each]:
-            del DEFAULT[each]
-    for each in DEFAULT:
-        if "(default)" in each:
-            DEFAULT = " ".join(each.split()[:-1])
-
-    # Get just the ID
-    DEFAULT = DEFAULT.split("(")[1][:-1]
-
-    return DEFAULT
+    entries = get_boot_entries()
+    for each in entries:
+        if entries[each]["default"] is True:
+            return entries[each]["id"]
 
 
-def generate_settings(uuid, default_entry=None):
-    """Generate settings based off the current system,
-    Or, passed settings
-    """
+def update_defaults_file(default_entry):
+    """Write default bootloader entry to config file"""
     DEFAULTS_FILE_ADDON = """# This file defines the default boot entry that systemd-boot should be using.
     # It only reads the first line, but these other lines are being commented out like
     # in a shell script because if this file gets renamed and used for other purposes,
@@ -155,14 +152,6 @@ def generate_settings(uuid, default_entry=None):
     # If you don't want systemd-boot-manager changing the default entry, just comment that
     # first line out and it will not do anything."""
     try:
-        with open(UUID_FILE, "w") as conf:
-            conf.write(uuid)
-    except (FileNotFoundError, PermissionError) as err:
-        __eprint__(ERROR + "An Unwarrented error has occured. Please try again later." + CLEAR)
-        __eprint__("The error reported was:")
-        __eprint__(err.output)
-        sys.exit(err.returncode)
-    try:
         with open(DEFAULTS_FILE, "w") as conf:
             if default_entry is not None:
                 conf.write(default_entry)
@@ -172,9 +161,20 @@ def generate_settings(uuid, default_entry=None):
             conf.write(DEFAULTS_FILE_ADDON)
     except (FileNotFoundError, PermissionError) as err:
         __eprint__(ERROR + "An Unwarrented error has occured. Please try again later." + CLEAR)
-        __eprint__("The error reported was:")
-        __eprint__(err.output)
-        sys.exit(err.returncode)
+        sys.exit(2)
+
+
+def generate_settings(uuid, default_entry=None):
+    """Generate settings based off the current system,
+    Or, passed settings
+    """
+    try:
+        with open(UUID_FILE, "w") as conf:
+            conf.write(uuid)
+    except (FileNotFoundError, PermissionError) as err:
+        __eprint__(ERROR + "An Unwarrented error has occured. Please try again later." + CLEAR)
+        sys.exit(2)
+    update_defaults_file(default_entry)
 
 
 def check():
@@ -243,12 +243,32 @@ def repair():
     generate_settings(UUID, default_entry=default_entry)
     print("\n")
     check()
-    
-    
+
+
 def set_as_default_entry(entry):
     """Set 'entry' as the default bootloader entry"""
-    __eprint__(ERROR + "NOT IMPLEMENTED YET." + CLEAR)
-    sys.exit(1)
+    if os.geteuid() != 0:
+        __eprint__(ERROR + "You need to be run this program as root to repair your settings." + CLEAR)
+        sys.exit(2)
+    entries = get_boot_entries()
+    for each in entries:
+        if entries[each]["id"] == entry:
+            if entries[each]["default"] is True:
+                __eprint__(BLUE + "Already Default Entry" + CLEAR)
+                sys.exit()
+            # Set as default here
+            update_defaults_file(entry)
+            try:
+                subprocess.check_call(["bootctl", "set-default", entry])
+            except subprocess.CalledProcessError as err:
+                __eprint__(ERROR + "CANNOT SET INTENDED DEFAULT" + CLEAR)
+                __eprint__("Error was:")
+                __eprint__(err.output)
+                sys.exit(err.returncode)
+            print(GREEN + "SUCCESS!" + CLEAR)
+            sys.exit()
+    __eprint__(ERROR + "ID Not found. Please provide a valid ID. IDs can be found using `update-systemd-boot --list'.")
+
 
 
 # get length of argv
@@ -269,14 +289,13 @@ if ARGC >= 2:
         print(BLUE + "BOOT LOADER ENTRIES" + CLEAR)
         print("-" * 20, "\n")
         for each in entries:
-            if type(each) == str:
-                print("\t-  " + each)
-            elif type(each) == list:
-                print("\t-  " + each[0])
+            print("\t-  " + each)
+            print("\t\tID: " + entries[each]["id"])
+            print("\t\tDefault: " + str(entries[each]["default"]), "\n")
     elif sys.argv[1] in ("-d", "--default"):
         if len(sys.argv) < 3:
-              __eprint__(ERROR + "No default specified." + CLEAR)
-              sys.exit(2)
+            __eprint__(ERROR + "No default specified." + CLEAR)
+            sys.exit(2)
         set_as_default_entry(sys.argv[2])
     else:
         __eprint__(ERROR + "Flag: " + sys.argv[1] + " Not understood.")
