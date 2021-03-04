@@ -161,6 +161,8 @@ except FileNotFoundError:
 except PermissionError:
     __eprint__(ERROR + "CANNOT DELETE LOADER DIRECTORY. RUNNING AS ROOT?")
     failure(2)
+except NotADirectoryError:
+    os.remove(LOADER_DIR)
 
 try:
     os.mkdir(LOADER_DIR)

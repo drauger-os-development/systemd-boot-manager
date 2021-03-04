@@ -40,7 +40,7 @@ CONFIG_DIR = "/etc/systemd-boot-manager"
 UUID_FILE = CONFIG_DIR + "/UUID.conf"
 DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
 
-VERSION = "0.0.8-alpha0"
+VERSION = "0.0.9-alpha0"
 HELP = """systemd-boot-manager, Version: %s
 
 \t-c, --check\t\t\t\tCheck systemd-boot-manager settings.
