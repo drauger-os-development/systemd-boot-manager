@@ -40,7 +40,7 @@ CONFIG_DIR = "/etc/systemd-boot-manager"
 UUID_FILE = CONFIG_DIR + "/UUID.conf"
 DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
 
-VERSION = "0.0.9-alpha0"
+VERSION = "0.1.0-alpha1"
 HELP = """systemd-boot-manager, Version: %s
 
 \t-c, --check\t\t\t\tCheck systemd-boot-manager settings.
@@ -48,6 +48,7 @@ HELP = """systemd-boot-manager, Version: %s
 \t-h, --help\t\t\t\tPrint this help dialog and exit.
 \t-l, --list\t\t\t\tList all bootloader entries.
 \t-r, --repair\t\t\t\tRepair systemd-boot-manager settings and systemd-boot.
+\t-s, --show-settings\t\t\tShow current settings.
 \t-u, --update\t\t\t\tUpdate systemd-boot, default action.
 \t-v, --version\t\t\t\tPrint current version and exit.""" % (VERSION)
 
@@ -73,13 +74,11 @@ def trigger():
         sys.exit(err.returncode)
 
 
-def get_UUID():
-    """Get UUID for the root partition"""
-    # Get root partition
-    root_part = ""
+def _get_devices():
+    """Get devices from LSBLK"""
     try:
         devices = json.loads(subprocess.check_output(["lsblk", "--output",
-                                                      "NAME,MOUNTPOINT",
+                                                      "PATH,TYPE,MOUNTPOINT,PARTUUID",
                                                       "--json",
                                                       "--paths"]).decode().replace("I", "i"))
     except subprocess.CalledProcessError as err:
@@ -89,27 +88,20 @@ def get_UUID():
         sys.exit(err.returncode)
     devices = devices["blockdevices"]
     for each in range(len(devices) - 1, -1, -1):
-        if "loop" in devices[each]["name"]:
+        if "loop" == devices[each]["type"]:
             del devices[each]
+    return devices
+
+
+def get_UUID():
+    """Get UUID for the root partition"""
+    # Get root partition
+    uuid = ""
+    devices = _get_devices()
     for each in devices:
-        if "children" in each:
-            for each1 in each["children"]:
-                if each1["mountpoint"] == "/":
-                    root_part = each1["name"]
-                    break
-        if root_part != "":
+        if each["mountpoint"] == "/":
+            uuid = each["partuuid"]
             break
-    # Clean up
-    del devices
-    # Get our UUID
-    try:
-        uuid = subprocess.check_output(["blkid", "-s", "PARTUUID", "-o",
-                                        "value", root_part]).decode()[:-1]
-    except subprocess.CalledProcessError as err:
-        __eprint__(ERROR + "CANNOT GET ROOT PARTITION UUID. BLKID FAILED." + CLEAR)
-        __eprint__("The error was: ")
-        __eprint__(err.output)
-        sys.exit(err.returncode)
     return uuid
 
 
@@ -177,30 +169,37 @@ def generate_settings(uuid, default_entry=None):
     update_defaults_file(default_entry)
 
 
+def _check_default_entry():
+    """Confirm default boot entry is correct"""
+    intended_default = "#"
+    with open(DEFAULTS_FILE, "r") as conf:
+        intended_default = conf.read().split()[0]
+    default = get_default_boot_entry()
+    if default == intended_default:
+        return True
+    elif intended_default != "#":
+        return False
+
+
+def _check_uuid():
+    """Check correct UUID is in use"""
+    with open(UUID_FILE, "r") as conf:
+        uuid_stored = conf.read()
+    if uuid_stored[-1] == "\n":
+        uuid_stored = uuid_stored[:-1]
+    uuid_generated = get_UUID()
+    return (uuid_stored == uuid_generated)
+
+
 def check():
     """Check systemd-boot-manager settings"""
     # This is like a report for use to use to explain to the user later
     # How their config is doing
     report = {"UUID":None, "DEFAULT": None}
     if os.path.isfile(UUID_FILE):
-        with open(UUID_FILE, "r") as conf:
-            uuid_stored = conf.read()
-        if uuid_stored[-1] == "\n":
-            uuid_stored = uuid_stored[:-1]
-        uuid_generated = get_UUID()
-        if uuid_stored == uuid_generated:
-            report["UUID"] = True
-        else:
-            report["UUID"] = False
+        report["UUID"] = _check_uuid()
     if os.path.isfile(DEFAULTS_FILE):
-        intended_default = "#"
-        with open(DEFAULTS_FILE, "r") as conf:
-            intended_default = conf.read().split()[0]
-        default = get_default_boot_entry()
-        if default == intended_default:
-            report["DEFAULT"] = True
-        elif intended_default != "#":
-            report["DEFAULT"] = False
+        report["DEFAULT"] = _check_default_entry()
 
     print(BLUE + "RUNNING CONFIGURATION CHECKS" + CLEAR)
     print("-" * 20, "\n")
@@ -270,6 +269,36 @@ def set_as_default_entry(entry):
     __eprint__(ERROR + "ID Not found. Please provide a valid ID. IDs can be found using `update-systemd-boot --list'.")
 
 
+def get_settings():
+    """Get current settings"""
+    conf = {"UUID": None, "DEFAULT_ENTRY": None}
+    if _check_default_entry():
+        conf["DEFAULT_ENTRY"] = get_default_boot_entry()
+    else:
+        raise ValueError("Settings corrupted! Repair recommended!")
+    if _check_uuid():
+        conf["UUID"] = get_UUID()
+    else:
+        raise ValueError("Settings corrupted! Repair recommended!")
+    return conf
+
+
+def show_settings():
+    """Print current settings"""
+    print(GREEN + "CURRENT SETTINGS" + CLEAR)
+    print("-" * 20, "\n")
+    try:
+        settings = get_settings()
+    except ValueError:
+        print(RED + "\nERROR: SETTINGS LIKELY CORRUPTED!" + CLEAR)
+        print(RED + "\nERROR: REPAIR THIS ISSUE USING THE -r FLAG!\n" + CLEAR)
+        sys.exit(2)
+    print(BLUE + "DEFAULT BOOT ENTRY:\t" + CLEAR + settings["DEFAULT_ENTRY"])
+    devices = _get_devices()
+    for each in devices:
+        if each["partuuid"] == settings["UUID"]:
+            print(BLUE + "ROOT PARTITION:\t\t" + CLEAR + each["path"])
+
 
 # get length of argv
 ARGC = len(sys.argv)
@@ -284,6 +313,8 @@ if ARGC >= 2:
         check()
     elif sys.argv[1] in ("-r", "--repair"):
         repair()
+    elif sys.argv[1] in ("-s", "--show-settings"):
+        show_settings()
     elif sys.argv[1] in ("-l", "--list"):
         entries = get_boot_entries()
         print(BLUE + "BOOT LOADER ENTRIES" + CLEAR)
