@@ -1,5 +1,5 @@
 Package: systemd-boot-manager
-Version: 0.1.0-alpha1
+Version: 0.1.1-alpha1
 Maintainer: Thomas Castleman <contact@draugeros.org>
 Section: admin
 Architecture: all

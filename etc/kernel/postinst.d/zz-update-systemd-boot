@@ -87,6 +87,11 @@ def get_esp_part_used():
     return int(used.split("\t")[0])
 
 
+if os.path.isfile("/etc/systemd-boot-manager/disable.flag"):
+    __eprint__(WARNING + "systemd-boot-manager is disabled. Exiting without modifying anything." + CLEAR)
+    __eprint__(STATUS + "You can re-enable systemd-boot-manager with `sudo update-systemd-boot --enable'" + CLEAR)
+    sys.exit(0)
+
 print(STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT" + CLEAR)
 # Get our UUID
 with open("/etc/systemd-boot-manager/UUID.conf", "r") as uuid_conf:

@@ -33,24 +33,29 @@ RED = "\033[91m"
 CLEAR = "\033[0m"
 YELLOW = "\033[93m"
 BLUE = '\033[94m'
-ERROR = RED + "ERROR: " + CLEAR
-WARNING = YELLOW + "WARNING: " + CLEAR
+NAME = GREEN + "systemd-boot-manager" + CLEAR
+WARNING = NAME + "\t" + YELLOW + "WARNING: "
+ERROR = NAME + "\t" + RED + "ERROR: "
+STATUS = NAME + "\t" + BLUE
+SUCCESS = NAME + "\t" + GREEN
 
 CONFIG_DIR = "/etc/systemd-boot-manager"
 UUID_FILE = CONFIG_DIR + "/UUID.conf"
 DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
 
-VERSION = "0.1.0-alpha1"
+VERSION = "0.1.1-alpha1"
 HELP = """systemd-boot-manager, Version: %s
 
-\t-c, --check\t\t\t\tCheck systemd-boot-manager settings.
-\t-d, --default [bootloader entry]\tSet as default bootloader entry.
-\t-h, --help\t\t\t\tPrint this help dialog and exit.
-\t-l, --list\t\t\t\tList all bootloader entries.
-\t-r, --repair\t\t\t\tRepair systemd-boot-manager settings and systemd-boot.
-\t-s, --show-settings\t\t\tShow current settings.
-\t-u, --update\t\t\t\tUpdate systemd-boot, default action.
-\t-v, --version\t\t\t\tPrint current version and exit.""" % (VERSION)
+    -c, --check                         Check systemd-boot-manager settings.
+    -e, --enable                        Enable systemd-boot-manager.
+    -d, --default [bootloader entry]    Set as default bootloader entry.
+        --disable                       Disable systemd-boot-manager.
+    -h, --help                          Print this help dialog and exit.
+    -l, --list                          List all bootloader entries.
+    -r, --repair                        Repair systemd-boot-manager settings and systemd-boot.
+    -s, --show-settings                 Show current settings.
+    -u, --update                        Update systemd-boot, default action.
+    -v, --version                       Print current version and exit.""" % (VERSION)
 
 
 def __eprint__(*args, **kwargs):
@@ -63,9 +68,13 @@ if sys.version_info[0] == 2:
     sys.exit(2)
 
 
+def is_root():
+    """Check if we have root"""
+    return (os.geteuid() == 0)
+
 def trigger():
     """Trigger systemd-boot update"""
-    if os.geteuid() != 0:
+    if not is_root():
         __eprint__(ERROR + "You need to be run this program as root to update systemd-boot." + CLEAR)
         sys.exit(2)
     try:
@@ -227,7 +236,7 @@ def check():
 
 def repair():
     """Repair systemd-boot-manager and systemd-boot settings"""
-    if os.geteuid() != 0:
+    if not is_root():
         __eprint__(ERROR + "You need to be run this program as root to repair your settings." + CLEAR)
         sys.exit(2)
     print(BLUE + "INITIATING CONFIGURATION REPAIR" + CLEAR)
@@ -246,7 +255,7 @@ def repair():
 
 def set_as_default_entry(entry):
     """Set 'entry' as the default bootloader entry"""
-    if os.geteuid() != 0:
+    if not is_root():
         __eprint__(ERROR + "You need to be run this program as root to repair your settings." + CLEAR)
         sys.exit(2)
     entries = get_boot_entries()
@@ -328,6 +337,29 @@ if ARGC >= 2:
             __eprint__(ERROR + "No default specified." + CLEAR)
             sys.exit(2)
         set_as_default_entry(sys.argv[2])
+    elif sys.argv[1] in ("-e", "--enable"):
+        if not is_root():
+            __eprint__(ERROR + "You need to be run this program as root to enable systemd-boot-manager." + CLEAR)
+            sys.exit(2)
+        if os.path.isfile("/etc/systemd-boot-manager/disable.flag"):
+            os.remove("/etc/systemd-boot-manager/disable.flag")
+            print(SUCCESS + "systemd-boot-manager enabled!" + CLEAR)
+            sys.exit(0)
+        else:
+            print(WARNING + "systemd-boot-manager already enabled." + CLEAR)
+            sys.exit(1)
+    elif sys.argv[1] == "--disable":
+        if not is_root():
+            __eprint__(ERROR + "You need to be run this program as root to disable systemd-boot-manager." + CLEAR)
+            sys.exit(2)
+        if os.path.isfile("/etc/systemd-boot-manager/disable.flag"):
+            __eprint__(WARNING + "systemd-boot-manager already disabled." + CLEAR)
+            sys.exit(1)
+        else:
+            with open("/etc/systemd-boot-manager/disable.flag", "w+") as file:
+                file.write("")
+            print(SUCCESS + "systemd-boot-manager disabled!" + CLEAR)
+            sys.exit(0)
     else:
         __eprint__(ERROR + "Flag: " + sys.argv[1] + " Not understood.")
         print(HELP)
