@@ -3,7 +3,7 @@
 #
 #  zz-update-systemd-boot
 #
-#  Copyright 2020 Thomas Castleman <contact@draugeros.org>
+#  Copyright 2021 Thomas Castleman <contact@draugeros.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -66,16 +66,23 @@ def __eprint__(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-# Check to make sure we are running as Python3, not 2
-if sys.version_info[0] == 2:
-    __eprint__(ERROR + "Please run with Python 3 as Python 2 is End-of-Life." + CLEAR)
-    sys.exit(2)
+def check_for_files(files):
+    """Check for files needed.
+
+    Returns True if all files are present,
+    False if any file is missing.
+    """
+    for each in files:
+        if not os.path.exists(each):
+            return False
+    return True
 
 
 def failure(exit_code):
     """Consistent Failure output"""
     __eprint__(NAME + "\t" + RED + "SYSTEMD-BOOT UPDATES FAILED!" + CLEAR)
     sys.exit(exit_code)
+
 
 def warning(output):
     __eprint__(WARNING + output + CLEAR)
@@ -86,6 +93,11 @@ def get_esp_part_used():
     used = subprocess.check_output(["du", "-bs", "/boot/efi"]).decode()
     return int(used.split("\t")[0])
 
+
+# Check to make sure we are running as Python3, not 2
+if sys.version_info[0] == 2:
+    __eprint__(ERROR + "Please run with Python 3 as Python 2 is End-of-Life." + CLEAR)
+    sys.exit(2)
 
 if os.path.isfile("/etc/systemd-boot-manager/disable.flag"):
     __eprint__(WARNING + "systemd-boot-manager is disabled. Exiting without modifying anything." + CLEAR)
@@ -199,16 +211,31 @@ del KERNELS[-1]
 print(NAME + "\t" + GREEN + LATEST + CLEAR)
 
 # Time for the real work
-# Grab the necessary files
+# We need to make sure the files we need ACTUALLY EXIST first
+# Otherwise we can end up with a FileNotFoundError
+NEEDED_FILES1 = []
 for FILE in NEEDED_FILES:
-    try:
-        shutil.copyfile(BOOT_DIR + FILE + "-" + LATEST, LOADER_DIR + FILE)
-    except FileExistsError:
-        os.remove(LOADER_DIR + FILE)
-        shutil.copyfile(BOOT_DIR + FILE + "-" + LATEST, LOADER_DIR + FILE)
-    except PermissionError:
-        __eprint__(ERROR + "CANNOT COPY LOADER FILES. RUNNING AS ROOT?")
-        failure(2)
+    NEEDED_FILES1.append(BOOT_DIR + FILE + "-" + LATEST)
+if check_for_files(NEEDED_FILES1):
+    # We know the files we need exist. Copy them.
+    for each in NEEDED_FILES1:
+        try:
+            shutil.copyfile(each, LOADER_DIR + FILE)
+        except FileExistsError:
+            os.remove(LOADER_DIR + FILE)
+            shutil.copyfile(each, LOADER_DIR + FILE)
+        except PermissionError:
+            __eprint__(ERROR + "CANNOT COPY LOADER FILES. RUNNING AS ROOT?" + CLEAR)
+            failure(2)
+else:
+    __eprint__(WARNING + "SOME FILE THAT IS NEEDED DOES NOT EXIST." + CLEAR)
+    __eprint__(WARNING + "IT WILL LIKELY BE GENERATED LATER." + CLEAR)
+    __eprint__(WARNING + "DIFFERING UPDATE." + CLEAR)
+    __eprint__(WARNING + "IF YOU DO NOT GET A SUCCESSFUL UPDATE LATER" + CLEAR)
+    __eprint__(WARNING + "CALL `sudo update-systemd-boot' TO MANUALLY" + CLEAR)
+    __eprint__(WARNING + "TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES" + CLEAR)
+    __eprint__(WARNING + "SOMETHING ELSE MAY BE WRONG." + CLEAR)
+    sys.exit()
 
 # Make sure directory structure is good
 if not os.path.exists(CLEAN_DIR):
@@ -222,7 +249,7 @@ if not os.path.exists(CLEAN_DIR):
             os.mkdir(dir)
         except FileExistsError:
             pass
-            
+
 # Generate Config Files
 with open("".join(CONF_FILE), "w+") as output:
     output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + ROOT_FLAGS)

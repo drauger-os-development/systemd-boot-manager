@@ -3,7 +3,7 @@
 #
 #  update-systemd-boot
 #
-#  Copyright 2020 Thomas Castleman <contact@draugeros.org>
+#  Copyright 2021 Thomas Castleman <contact@draugeros.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ CONFIG_DIR = "/etc/systemd-boot-manager"
 UUID_FILE = CONFIG_DIR + "/UUID.conf"
 DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
 
-VERSION = "0.1.1-alpha1"
+VERSION = "0.1.2-alpha1"
 HELP = """systemd-boot-manager, Version: %s
 
     -c, --check                         Check systemd-boot-manager settings.

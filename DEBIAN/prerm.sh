@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # -*- coding: utf-8 -*-
 #
 #  prerm.sh
@@ -21,4 +21,4 @@
 #  MA 02110-1301, USA.
 #
 #
-rm -rf /etc/systemd-boot-manager/UUID.conf 1>/dev/null 2>/dev/null
+rm -rfv /etc/systemd-boot-manager/UUID.conf

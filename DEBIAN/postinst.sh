@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # -*- coding: utf-8 -*-
 #
 #  postinst.sh
@@ -25,6 +25,7 @@ set -e
 case "$1" in
 	configure)
 		if [ -f /etc/systemd-boot-manager/UUID.conf ]; then
+			echo "Generating UUID configuration file"
 			root=$(lsblk --output NAME,MOUNTPOINT --paths --list | grep "/$" | awk '{print $1}')
 			echo "$(blkid -s PARTUUID -o value $root)" > /etc/systemd-boot-manager/UUID.conf
 		fi
