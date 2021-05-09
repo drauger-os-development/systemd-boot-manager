@@ -29,6 +29,7 @@ import os
 import shutil
 import subprocess
 import json
+import distro
 
 GREEN = "\033[92m"
 RED = "\033[91m"
@@ -41,12 +42,13 @@ WARNING = NAME + "\t" + YELLOW + "WARNING: "
 ERROR = NAME + "\t" + RED + "ERROR: "
 STATUS = NAME + "\t" + BLUE
 SUCCESS = NAME + "\t" + GREEN
+DISTRO = distro.name().replace(" ", "_")
 
 # Important Dirs/Files
 BOOT_DIR = "/boot/"
 CLEAN_DIR = BOOT_DIR + "efi/loader/entries/"
-LOADER_DIR = BOOT_DIR + "efi/Drauger_OS/"
-CONF_FILE = ["/boot/efi/loader/entries/Drauger_OS", ".conf"]
+LOADER_DIR = BOOT_DIR + "efi/" + DISTRO + "/"
+CONF_FILE = ["/boot/efi/loader/entries/" + DISTRO, ".conf"]
 ENTRY_CONF = "/etc/systemd-boot-manager/default_entry.conf"
 
 # Default Flags
@@ -56,8 +58,8 @@ RECOVERY_FLAGS = "ro recovery nomodeset"
 # Default Loader Conf File
 # We have to edit this in several places, multiple different times.
 # Having the default file as a list like this will make that faster
-CONF_FILE_CONTENTS = ["title   Drauger OS", "linux   /Drauger_OS/vmlinuz",
-                      "initrd  /Drauger_OS/initrd.img", "options root=PARTUUID="]
+CONF_FILE_CONTENTS = ["title  " + DISTRO, "linux   /" + DISTRO + "/vmlinuz",
+                      "initrd  /" + DISTRO + "/initrd.img", "options root=PARTUUID="]
 
 
 # Print to stderr

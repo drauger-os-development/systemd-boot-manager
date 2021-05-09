@@ -43,7 +43,7 @@ CONFIG_DIR = "/etc/systemd-boot-manager"
 UUID_FILE = CONFIG_DIR + "/UUID.conf"
 DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
 
-VERSION = "0.1.2-alpha1"
+VERSION = "0.1.3-alpha1"
 HELP = """systemd-boot-manager, Version: %s
 
     -c, --check                         Check systemd-boot-manager settings.
@@ -157,7 +157,7 @@ def update_defaults_file(default_entry):
             if default_entry is not None:
                 conf.write(default_entry)
             else:
-                conf.write("# Drauger_OS.conf")
+                conf.write("# default_entry_here.conf")
             conf.write("\n")
             conf.write(DEFAULTS_FILE_ADDON)
     except (FileNotFoundError, PermissionError) as err:
