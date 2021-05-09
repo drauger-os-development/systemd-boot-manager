@@ -218,12 +218,12 @@ for FILE in NEEDED_FILES:
     NEEDED_FILES1.append(BOOT_DIR + FILE + "-" + LATEST)
 if check_for_files(NEEDED_FILES1):
     # We know the files we need exist. Copy them.
-    for each in NEEDED_FILES1:
+    for each in enumerate(NEEDED_FILES1):
         try:
-            shutil.copyfile(each, LOADER_DIR + FILE)
+            shutil.copyfile(NEEDED_FILES1[each[0]], LOADER_DIR + NEEDED_FILES[each[0]])
         except FileExistsError:
-            os.remove(LOADER_DIR + FILE)
-            shutil.copyfile(each, LOADER_DIR + FILE)
+            os.remove(LOADER_DIR + NEEDED_FILES[each[0]])
+            shutil.copyfile(NEEDED_FILES1[each[0]], LOADER_DIR + NEEDED_FILES[each[0]])
         except PermissionError:
             __eprint__(ERROR + "CANNOT COPY LOADER FILES. RUNNING AS ROOT?" + CLEAR)
             failure(2)
