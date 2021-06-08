@@ -43,7 +43,7 @@ CONFIG_DIR = "/etc/systemd-boot-manager"
 UUID_FILE = CONFIG_DIR + "/UUID.conf"
 DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
 
-VERSION = "0.1.3-alpha1"
+VERSION = "0.1.4-alpha1"
 HELP = """systemd-boot-manager, Version: %s
 
     -c, --check                         Check systemd-boot-manager settings.
@@ -55,7 +55,8 @@ HELP = """systemd-boot-manager, Version: %s
     -r, --repair                        Repair systemd-boot-manager settings and systemd-boot.
     -s, --show-settings                 Show current settings.
     -u, --update                        Update systemd-boot, default action.
-    -v, --version                       Print current version and exit.""" % (VERSION)
+    -v, --version                       Print current version and exit.
+    -V, --verbose                       Print what is being done verbosely""" % (VERSION)
 
 
 def __eprint__(*args, **kwargs):
@@ -72,13 +73,16 @@ def is_root():
     """Check if we have root"""
     return (os.geteuid() == 0)
 
-def trigger():
+def trigger(verbose):
     """Trigger systemd-boot update"""
+    command = ["/etc/kernel/postinst.d/zz-update-systemd-boot"]
+    if verbose:
+        command.append("-v")
     if not is_root():
         __eprint__(ERROR + "You need to be run this program as root to update systemd-boot." + CLEAR)
         sys.exit(2)
     try:
-        subprocess.check_call(["/etc/kernel/postinst.d/zz-update-systemd-boot"])
+        subprocess.check_call(command)
     except subprocess.CalledProcessError as err:
         sys.exit(err.returncode)
 
@@ -102,11 +106,13 @@ def _get_devices():
     return devices
 
 
-def get_UUID():
+def get_UUID(verbose):
     """Get UUID for the root partition"""
     # Get root partition
     uuid = ""
+    print("getting devices . . .")
     devices = _get_devices()
+    print("Parsing for UUIDs . . .")
     for each in devices:
         if each["mountpoint"] == "/":
             uuid = each["partuuid"]
@@ -114,11 +120,13 @@ def get_UUID():
     return uuid
 
 
-def get_boot_entries():
+def get_boot_entries(verbose=False):
     """Get bootloader entries"""
+    print("Getting boot entry list . . .")
     entries = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
     output = {}
     name = ""
+    print("Parsing List. . .")
     for each in entries:
         if "title: " in each:
             if "(default)" in each:
@@ -132,15 +140,16 @@ def get_boot_entries():
     return output
 
 
-def get_default_boot_entry():
+def get_default_boot_entry(verbose):
     """Get default bootloader entry"""
-    entries = get_boot_entries()
+    entries = get_boot_entries(verbose=verbose)
+    print("Checking parsed data for 'default' flag . . .")
     for each in entries:
         if entries[each]["default"] is True:
             return entries[each]["id"]
 
 
-def update_defaults_file(default_entry):
+def update_defaults_file(default_entry, verbose=False):
     """Write default bootloader entry to config file"""
     DEFAULTS_FILE_ADDON = """# This file defines the default boot entry that systemd-boot should be using.
     # It only reads the first line, but these other lines are being commented out like
@@ -153,10 +162,14 @@ def update_defaults_file(default_entry):
     # If you don't want systemd-boot-manager changing the default entry, just comment that
     # first line out and it will not do anything."""
     try:
+        if verbose:
+            print("Writing default boot entry to " + DEFAULTS_FILE + " . . .")
         with open(DEFAULTS_FILE, "w") as conf:
             if default_entry is not None:
                 conf.write(default_entry)
             else:
+                if verbose:
+                    print("No default set, writing dummy value . . .")
                 conf.write("# default_entry_here.conf")
             conf.write("\n")
             conf.write(DEFAULTS_FILE_ADDON)
@@ -165,61 +178,77 @@ def update_defaults_file(default_entry):
         sys.exit(2)
 
 
-def generate_settings(uuid, default_entry=None):
+def generate_settings(uuid, default_entry=None, verbose=False):
     """Generate settings based off the current system,
     Or, passed settings
     """
     try:
+        if verbose:
+            print("Writing UUID settings to " + UUID_FILE + " . . .")
         with open(UUID_FILE, "w") as conf:
             conf.write(uuid)
     except (FileNotFoundError, PermissionError) as err:
         __eprint__(ERROR + "An Unwarrented error has occured. Please try again later." + CLEAR)
         sys.exit(2)
-    update_defaults_file(default_entry)
+    update_defaults_file(default_entry, verbose=verbose)
 
 
-def _check_default_entry():
+def _check_default_entry(verbose=False):
     """Confirm default boot entry is correct"""
     intended_default = "#"
+    if verbose:
+        print("Reading defaults file . . .")
     with open(DEFAULTS_FILE, "r") as conf:
         intended_default = conf.read().split()[0]
-    default = get_default_boot_entry()
+    default = get_default_boot_entry(verbose)
+    if verbose:
+        print("Comparing defaults file to defaults in memory . . .")
     if default == intended_default:
         return True
     elif intended_default != "#":
         return False
 
 
-def _check_uuid():
+def _check_uuid(verbose=False):
     """Check correct UUID is in use"""
+    if verbose:
+        print("Reading UUID file . . .")
     with open(UUID_FILE, "r") as conf:
         uuid_stored = conf.read()
     if uuid_stored[-1] == "\n":
         uuid_stored = uuid_stored[:-1]
-    uuid_generated = get_UUID()
+    uuid_generated = get_UUID(verbose)
+    if verbose:
+        print("Comparing UUID file to UUID in memory . . .")
     return (uuid_stored == uuid_generated)
 
 
-def check():
+def check(verbose):
     """Check systemd-boot-manager settings"""
     # This is like a report for use to use to explain to the user later
     # How their config is doing
     report = {"UUID":None, "DEFAULT": None}
+    if verbose:
+        print("Reading config files . . .")
     if os.path.isfile(UUID_FILE):
-        report["UUID"] = _check_uuid()
+        report["UUID"] = _check_uuid(verbose=verbose)
     if os.path.isfile(DEFAULTS_FILE):
-        report["DEFAULT"] = _check_default_entry()
+        report["DEFAULT"] = _check_default_entry(verbose=verbose)
 
     print(BLUE + "RUNNING CONFIGURATION CHECKS" + CLEAR)
     print("-" * 20, "\n")
     errors = 0
     for each in report:
+        if verbose:
+            print("Checking UUID . . .")
         if each == "UUID":
             if report["UUID"]:
                 print(BLUE + "UUID: " + GREEN + "GOOD" + CLEAR)
             else:
                 print(BLUE + "UUID: " + RED + "MISMATCH" + CLEAR)
                 errors += 1
+        if verbose:
+            print("Checking default entry . . .")
         if each == "DEFAULT":
             if report["DEFAULT"] is True:
                 print(BLUE + "DEFAULT BOOTLOADER ENTRY: " + GREEN + "GOOD" + CLEAR)
@@ -234,7 +263,7 @@ def check():
         sys.exit(1)
 
 
-def repair():
+def repair(verbose):
     """Repair systemd-boot-manager and systemd-boot settings"""
     if not is_root():
         __eprint__(ERROR + "You need to be run this program as root to repair your settings." + CLEAR)
@@ -243,14 +272,14 @@ def repair():
     print("-" * 20, "\n")
     # Get UUID
     print(BLUE + "GETTING APPRORIATE SETTINGS" + CLEAR)
-    UUID = get_UUID()
+    UUID = get_UUID(verbose)
     # Get default entry
-    default_entry = get_default_boot_entry()
+    default_entry = get_default_boot_entry(verbose)
     # Make them permanent
     print(BLUE + "WRITING SETTINGS TO DISK" + CLEAR)
-    generate_settings(UUID, default_entry=default_entry)
+    generate_settings(UUID, default_entry=default_entry, verbose=verbose)
     print("\n")
-    check()
+    check(verbose)
 
 
 def set_as_default_entry(entry):
@@ -278,26 +307,26 @@ def set_as_default_entry(entry):
     __eprint__(ERROR + "ID Not found. Please provide a valid ID. IDs can be found using `update-systemd-boot --list'.")
 
 
-def get_settings():
+def get_settings(verbose):
     """Get current settings"""
     conf = {"UUID": None, "DEFAULT_ENTRY": None}
-    if _check_default_entry():
-        conf["DEFAULT_ENTRY"] = get_default_boot_entry()
+    if _check_default_entry(verbose=verbose):
+        conf["DEFAULT_ENTRY"] = get_default_boot_entry(verbose)
     else:
         raise ValueError("Settings corrupted! Repair recommended!")
-    if _check_uuid():
-        conf["UUID"] = get_UUID()
+    if _check_uuid(verbose=verbose):
+        conf["UUID"] = get_UUID(verbose)
     else:
         raise ValueError("Settings corrupted! Repair recommended!")
     return conf
 
 
-def show_settings():
+def show_settings(verbose):
     """Print current settings"""
     print(GREEN + "CURRENT SETTINGS" + CLEAR)
     print("-" * 20, "\n")
     try:
-        settings = get_settings()
+        settings = get_settings(verbose)
     except ValueError:
         print(RED + "\nERROR: SETTINGS LIKELY CORRUPTED!" + CLEAR)
         print(RED + "\nERROR: REPAIR THIS ISSUE USING THE -r FLAG!\n" + CLEAR)
@@ -311,33 +340,45 @@ def show_settings():
 
 # get length of argv
 ARGC = len(sys.argv)
+VERBOSE = False
+POINT = 1
 if ARGC >= 2:
-    if sys.argv[1] in ("-h", "--help"):
+    # check for verbose flag first
+    for each in enumerate(sys.argv):
+        if sys.argv[each[0]] in ("-V", "--verbose"):
+            VERBOSE = True
+            POINT = each[0]
+            break
+    if POINT == 1 and VERBOSE:
+        POINT = 2
+    else:
+        POINT = 1
+    if sys.argv[POINT] in ("-h", "--help"):
         print(HELP)
-    elif sys.argv[1] in ("-v", "--version"):
+    elif sys.argv[POINT] in ("-v", "--version"):
         print(VERSION)
-    elif sys.argv[1] in ("-u", "--update"):
-        trigger()
-    elif sys.argv[1] in ("-c", "--check"):
-        check()
-    elif sys.argv[1] in ("-r", "--repair"):
-        repair()
-    elif sys.argv[1] in ("-s", "--show-settings"):
-        show_settings()
-    elif sys.argv[1] in ("-l", "--list"):
-        entries = get_boot_entries()
+    elif sys.argv[POINT] in ("-u", "--update"):
+        trigger(VERBOSE)
+    elif sys.argv[POINT] in ("-c", "--check"):
+        check(VERBOSE)
+    elif sys.argv[POINT] in ("-r", "--repair"):
+        repair(VERBOSE)
+    elif sys.argv[POINT] in ("-s", "--show-settings"):
+        show_settings(VERBOSE)
+    elif sys.argv[POINT] in ("-l", "--list"):
+        entries = get_boot_entries(verbose=VERBOSE)
         print(BLUE + "BOOT LOADER ENTRIES" + CLEAR)
         print("-" * 20, "\n")
         for each in entries:
             print("\t-  " + each)
             print("\t\tID: " + entries[each]["id"])
             print("\t\tDefault: " + str(entries[each]["default"]), "\n")
-    elif sys.argv[1] in ("-d", "--default"):
+    elif sys.argv[POINT] in ("-d", "--default"):
         if len(sys.argv) < 3:
             __eprint__(ERROR + "No default specified." + CLEAR)
             sys.exit(2)
-        set_as_default_entry(sys.argv[2])
-    elif sys.argv[1] in ("-e", "--enable"):
+        set_as_default_entry(sys.argv[POINT + 1])
+    elif sys.argv[POINT] in ("-e", "--enable"):
         if not is_root():
             __eprint__(ERROR + "You need to be run this program as root to enable systemd-boot-manager." + CLEAR)
             sys.exit(2)
@@ -348,7 +389,7 @@ if ARGC >= 2:
         else:
             print(WARNING + "systemd-boot-manager already enabled." + CLEAR)
             sys.exit(1)
-    elif sys.argv[1] == "--disable":
+    elif sys.argv[POINT] == "--disable":
         if not is_root():
             __eprint__(ERROR + "You need to be run this program as root to disable systemd-boot-manager." + CLEAR)
             sys.exit(2)
