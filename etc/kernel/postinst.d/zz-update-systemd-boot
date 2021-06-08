@@ -43,6 +43,7 @@ ERROR = NAME + "\t" + RED + "ERROR: "
 STATUS = NAME + "\t" + BLUE
 SUCCESS = NAME + "\t" + GREEN
 DISTRO = distro.name().replace(" ", "_")
+VERBOSE = False
 
 # Important Dirs/Files
 BOOT_DIR = "/boot/"
@@ -60,7 +61,9 @@ RECOVERY_FLAGS = "ro recovery nomodeset"
 # Having the default file as a list like this will make that faster
 CONF_FILE_CONTENTS = ["title  " + DISTRO, "linux   /" + DISTRO + "/vmlinuz",
                       "initrd  /" + DISTRO + "/initrd.img", "options root=PARTUUID="]
-
+if len(sys.argv) > 1:
+    if sys.argv[1] == "-v":
+        VERBOSE = True
 
 # Print to stderr
 def __eprint__(*args, **kwargs):
@@ -222,6 +225,8 @@ if check_for_files(NEEDED_FILES1):
     # We know the files we need exist. Copy them.
     for each in enumerate(NEEDED_FILES1):
         try:
+            if VERBOSE:
+                print(NEEDED_FILES1[each[0]] + " -> " + LOADER_DIR + NEEDED_FILES[each[0]])
             shutil.copyfile(NEEDED_FILES1[each[0]], LOADER_DIR + NEEDED_FILES[each[0]])
         except FileExistsError:
             os.remove(LOADER_DIR + NEEDED_FILES[each[0]])
@@ -278,6 +283,8 @@ if len(KERNELS) >= 1:
         print(NAME + "\t" + GREEN + VERSION + BLUE + "\t(LEGACY)" + CLEAR)
         for FILE in NEEDED_FILES:
             try:
+                if VERBOSE:
+                    print(BOOT_DIR + FILE + "-" + VERSION + " -> " + LOADER_DIR + FILE + "-" + VERSION)
                 shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION, LOADER_DIR + FILE + "-" + VERSION)
             except FileExistsError:
                 os.remove(LOADER_DIR + FILE)
