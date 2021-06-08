@@ -256,7 +256,12 @@ if not os.path.exists(CLEAN_DIR):
 with open("".join(CONF_FILE), "w+") as output:
     output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + ROOT_FLAGS)
 with open("_Recovery".join(CONF_FILE), "w+") as output:
-    output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + RECOVERY_FLAGS)
+    for each in enumerate(CONF_FILE_CONTENTS):
+        if each[0] == 0:
+            output.write(CONF_FILE_CONTENTS[each[0]] + " Recovery")
+        else:
+            output.write(CONF_FILE_CONTENTS[each[0]])
+        output.write("\n")
 
 
 # Legacy Kernel Support
