@@ -324,21 +324,26 @@ except subprocess.CalledProcessError:
 
 # Get default bootloader entry
 DEFAULT = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
+ENTRIES = []
+AE = []
+TOGGLE = False
 for each in range(len(DEFAULT) - 1, -1, -1):
-    if "title: " not in DEFAULT[each]:
-        del DEFAULT[each]
-        continue
-    if "Reboot Into Firmware Interface" in DEFAULT[each]:
-        del DEFAULT[each]
-        continue
-    DEFAULT[each] = " ".join(DEFAULT[each].split()[1:])
+    if (("title: " in DEFAULT[each]) or ("id: " in DEFAULT[each])):
+        if "firmware" in DEFAULT[each].lower():
+            continue
+        AE.append(list(filter(lambda x: x != "", DEFAULT[each].split(" ")))[-1])
+        if TOGGLE:
+            ENTRIES.append(AE)
+            AE = []
+            TOGGLE = False
+        else:
+            TOGGLE = True
 
-for each in DEFAULT:
+
+for each in ENTRIES:
     if "(default)" in each:
-        DEFAULT = " ".join(each.split()[:-1])
-
-# Get just the ID
-DEFAULT = DEFAULT.split("(")[1][:-1]
+        DEFAULT = each[0]
+        break
 
 # Read Default.conf, find what default entry SHOULD be
 # We do this so that if this entry is lost after a CMOS clear, it can be restored.
