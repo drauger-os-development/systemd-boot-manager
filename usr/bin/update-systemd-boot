@@ -43,7 +43,7 @@ CONFIG_DIR = "/etc/systemd-boot-manager"
 UUID_FILE = CONFIG_DIR + "/UUID.conf"
 DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
 
-VERSION = "0.1.4-alpha1"
+VERSION = "0.1.5-alpha1"
 HELP = """systemd-boot-manager, Version: %s
 
     -c, --check                         Check systemd-boot-manager settings.
@@ -406,4 +406,4 @@ if ARGC >= 2:
         print(HELP)
         sys.exit(1)
 else:
-    trigger()
+    trigger(False)
