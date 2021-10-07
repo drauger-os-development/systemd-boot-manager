@@ -96,9 +96,11 @@ def get_UUID(verbose):
     """Get UUID for the root partition"""
     # Get root partition
     uuid = ""
-    print("getting devices . . .")
+    if verbose:
+        print("getting devices . . .")
     devices = _get_devices()
-    print("Parsing for UUIDs . . .")
+    if verbose:
+        print("Parsing for UUIDs . . .")
     for each in devices:
         if each["mountpoint"] == "/":
             uuid = each["partuuid"]
@@ -108,11 +110,13 @@ def get_UUID(verbose):
 
 def get_boot_entries(verbose=False):
     """Get bootloader entries"""
-    print("Getting boot entry list . . .")
+    if verbose:
+        print("Getting boot entry list . . .")
     entries = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
     output = {}
     name = ""
-    print("Parsing List. . .")
+    if verbose:
+        print("Parsing List. . .")
     for each in entries:
         if "title: " in each:
             if "(default)" in each:
@@ -129,7 +133,8 @@ def get_boot_entries(verbose=False):
 def get_default_boot_entry(verbose):
     """Get default bootloader entry"""
     entries = get_boot_entries(verbose=verbose)
-    print("Checking parsed data for 'default' flag . . .")
+    if verbose:
+        print("Checking parsed data for 'default' flag . . .")
     for each in entries:
         if entries[each]["default"] is True:
             return entries[each]["id"]
