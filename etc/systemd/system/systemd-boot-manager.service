@@ -1,0 +1,11 @@
+[Unit]
+Description=Maintain Default Boot Entry with systemd-boot
+After=network.target
+
+[Service]
+User=root
+Group=root
+ExecStart=/usr/share/systemd-boot-manager/service.py
+
+[Install]
+WantedBy=multi-user.target

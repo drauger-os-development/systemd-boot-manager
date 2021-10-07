@@ -32,22 +32,22 @@ import systemd_boot_manager
 
 
 UUID_FILE = systemd_boot_manager.CONFIG_DIR + "/UUID.conf"
+VERSION = "0.1.8-alpha1"
+HELP = f"""systemd-boot-manager, Version: { VERSION }
 
-
-VERSION = "0.1.7-alpha1"
-HELP = """systemd-boot-manager, Version: %s
-
-    -c, --check                         Check systemd-boot-manager settings.
-    -e, --enable                        Enable systemd-boot-manager.
-    -d, --default [bootloader entry]    Set as default bootloader entry.
-        --disable                       Disable systemd-boot-manager.
-    -h, --help                          Print this help dialog and exit.
-    -l, --list                          List all bootloader entries.
-    -r, --repair                        Repair systemd-boot-manager settings and systemd-boot.
-    -s, --show-settings                 Show current settings.
-    -u, --update                        Update systemd-boot, default action.
-    -v, --version                       Print current version and exit.
-    -V, --verbose                       Print what is being done verbosely""" % (VERSION)
+    -c, --check                                          Check systemd-boot-manager settings.
+    -e, --enable                                         Enable systemd-boot-manager.
+        --enforce-default-entry=[enable|disable]         Make sure the default boot entry is set correctly
+                                                         at every boot
+    -d, --default [bootloader entry]                     Set as default bootloader entry.
+        --disable                                        Disable systemd-boot-manager.
+    -h, --help                                           Print this help dialog and exit.
+    -l, --list                                           List all bootloader entries.
+    -r, --repair                                         Repair systemd-boot-manager settings and systemd-boot.
+    -s, --show-settings                                  Show current settings.
+    -u, --update                                         Update systemd-boot, default action.
+    -v, --version                                        Print current version and exit.
+    -V, --verbose                                        Print what is being done verbosely"""
 
 
 if sys.version_info[0] == 2:
@@ -108,67 +108,6 @@ def get_UUID(verbose):
     return uuid
 
 
-def get_boot_entries(verbose=False):
-    """Get bootloader entries"""
-    if verbose:
-        print("Getting boot entry list . . .")
-    entries = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
-    output = {}
-    name = ""
-    if verbose:
-        print("Parsing List. . .")
-    for each in entries:
-        if "title: " in each:
-            if "(default)" in each:
-                output[" ".join(each.split()[1:])[:-10]] = {"default":True}
-                name = " ".join(each.split()[1:])[:-10]
-            else:
-                output[" ".join(each.split()[1:])] = {"default":False}
-                name = " ".join(each.split()[1:])
-        elif "id: " in each:
-            output[name]["id"] = each.split()[-1]
-    return output
-
-
-def get_default_boot_entry(verbose):
-    """Get default bootloader entry"""
-    entries = get_boot_entries(verbose=verbose)
-    if verbose:
-        print("Checking parsed data for 'default' flag . . .")
-    for each in entries:
-        if entries[each]["default"] is True:
-            return entries[each]["id"]
-
-
-def update_defaults_file(default_entry, verbose=False):
-    """Write default bootloader entry to config file"""
-    DEFAULTS_FILE_ADDON = """# This file defines the default boot entry that systemd-boot should be using.
-    # It only reads the first line, but these other lines are being commented out like
-    # in a shell script because if this file gets renamed and used for other purposes,
-    # then this syntax will be honored
-    #
-    # That first line needs to be the Entry ID you want to be default from
-    # `bootctl list`
-    #
-    # If you don't want systemd-boot-manager changing the default entry, just comment that
-    # first line out and it will not do anything."""
-    try:
-        if verbose:
-            print("Writing default boot entry to " + systemd_boot_manager.DEFAULTS_FILE + " . . .")
-        with open(systemd_boot_manager.DEFAULTS_FILE, "w") as conf:
-            if default_entry is not None:
-                conf.write(default_entry)
-            else:
-                if verbose:
-                    print("No default set, writing dummy value . . .")
-                conf.write("# default_entry_here.conf")
-            conf.write("\n")
-            conf.write(DEFAULTS_FILE_ADDON)
-    except (FileNotFoundError, PermissionError) as err:
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "An Unwarrented error has occured. Please try again later." + systemd_boot_manager.CLEAR)
-        sys.exit(2)
-
-
 def generate_settings(uuid, default_entry=None, verbose=False):
     """Generate settings based off the current system,
     Or, passed settings
@@ -181,23 +120,7 @@ def generate_settings(uuid, default_entry=None, verbose=False):
     except (FileNotFoundError, PermissionError) as err:
         systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "An Unwarrented error has occured. Please try again later." + systemd_boot_manager.CLEAR)
         sys.exit(2)
-    update_defaults_file(default_entry, verbose=verbose)
-
-
-def _check_default_entry(verbose=False):
-    """Confirm default boot entry is correct"""
-    intended_default = "#"
-    if verbose:
-        print("Reading defaults file . . .")
-    with open(systemd_boot_manager.DEFAULTS_FILE, "r") as conf:
-        intended_default = conf.read().split()[0]
-    default = get_default_boot_entry(verbose)
-    if verbose:
-        print("Comparing defaults file to defaults in memory . . .")
-    if default == intended_default:
-        return True
-    elif intended_default != "#":
-        return False
+    systemd_boot_manager.update_defaults_file(default_entry, verbose=verbose)
 
 
 def _check_uuid(verbose=False):
@@ -224,7 +147,7 @@ def check(verbose):
     if os.path.isfile(UUID_FILE):
         report["UUID"] = _check_uuid(verbose=verbose)
     if os.path.isfile(systemd_boot_manager.DEFAULTS_FILE):
-        report["DEFAULT"] = _check_default_entry(verbose=verbose)
+        report["DEFAULT"] = systemd_boot_manager.check_default_entry(verbose=verbose)
 
     print(systemd_boot_manager.BLUE + "RUNNING CONFIGURATION CHECKS" + systemd_boot_manager.CLEAR)
     print("-" * 20, "\n")
@@ -265,7 +188,7 @@ def repair(verbose):
     print(systemd_boot_manager.BLUE + "GETTING APPRORIATE SETTINGS" + systemd_boot_manager.CLEAR)
     UUID = get_UUID(verbose)
     # Get default entry
-    default_entry = get_default_boot_entry(verbose)
+    default_entry = systemd_boot_manager.get_default_boot_entry(verbose)
     # Make them permanent
     print(systemd_boot_manager.BLUE + "WRITING SETTINGS TO DISK" + systemd_boot_manager.CLEAR)
     generate_settings(UUID, default_entry=default_entry, verbose=verbose)
@@ -285,36 +208,11 @@ def set_disabled():
         file.write("")
 
 
-def set_as_default_entry(entry):
-    """Set 'entry' as the default bootloader entry"""
-    if not is_root():
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to be run this program as root to repair your settings." + systemd_boot_manager.CLEAR)
-        sys.exit(2)
-    entries = get_boot_entries()
-    for each in entries:
-        if entries[each]["id"] == entry:
-            if entries[each]["default"] is True:
-                systemd_boot_manager.eprint(systemd_boot_manager.BLUE + "Already Default Entry" + systemd_boot_manager.CLEAR)
-                sys.exit()
-            # Set as default here
-            update_defaults_file(entry)
-            try:
-                subprocess.check_call(["bootctl", "set-default", entry])
-            except subprocess.CalledProcessError as err:
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT SET INTENDED DEFAULT" + systemd_boot_manager.CLEAR)
-                systemd_boot_manager.eprint("Error was:")
-                systemd_boot_manager.eprint(err.output)
-                sys.exit(err.returncode)
-            print(systemd_boot_manager.GREEN + "SUCCESS!" + systemd_boot_manager.CLEAR)
-            sys.exit()
-    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "ID Not found. Please provide a valid ID. IDs can be found using `update-systemd-boot --list'.")
-
-
 def get_settings(verbose):
     """Get current settings"""
     conf = {"UUID": None, "DEFAULT_ENTRY": None}
-    if _check_default_entry(verbose=verbose):
-        conf["DEFAULT_ENTRY"] = get_default_boot_entry(verbose)
+    if systemd_boot_manager.check_default_entry(verbose=verbose):
+        conf["DEFAULT_ENTRY"] = systemd_boot_manager.get_default_boot_entry(verbose)
     else:
         raise ValueError("Settings corrupted! Repair recommended!")
     if _check_uuid(verbose=verbose):
@@ -369,7 +267,7 @@ if ARGC >= 2:
     elif sys.argv[POINT] in ("-s", "--show-settings"):
         show_settings(VERBOSE)
     elif sys.argv[POINT] in ("-l", "--list"):
-        entries = get_boot_entries(verbose=VERBOSE)
+        entries = systemd_boot_manager.get_boot_entries(verbose=VERBOSE)
         print(systemd_boot_manager.BLUE + "BOOT LOADER ENTRIES" + systemd_boot_manager.CLEAR)
         print("-" * 20, "\n")
         for each in entries:
@@ -380,7 +278,7 @@ if ARGC >= 2:
         if len(sys.argv) < 3:
             systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "No default specified." + systemd_boot_manager.CLEAR)
             sys.exit(2)
-        set_as_default_entry(sys.argv[POINT + 1])
+        systemd_boot_manager.set_as_default_entry(sys.argv[POINT + 1])
     elif sys.argv[POINT] in ("-e", "--enable"):
         if not is_root():
             systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to be run this program as root to enable systemd-boot-manager." + systemd_boot_manager.CLEAR)
@@ -403,6 +301,19 @@ if ARGC >= 2:
             set_disabled()
             print(systemd_boot_manager.SUCCESS + "systemd-boot-manager disabled!" + systemd_boot_manager.CLEAR)
             sys.exit(0)
+    elif "--enforce-default-entry" in sys.argv[POINT]:
+        if not is_root():
+            systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to be run this program as root to enable or disable boot entry enforcment." + systemd_boot_manager.CLEAR)
+            sys.exit(2)
+        setting = sys.argv[POINT][24:].lower()
+        if setting == "enable":
+            subprocess.check_call(["systemctl", "enable", "systemd-boot-manager"])
+        elif setting == "disable":
+            subprocess.check_call(["systemctl", "disable", "systemd-boot-manager"])
+        elif setting == "":
+            systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR}No option given. Option must be one of either `enable' or `disable'.{systemd_boot_manager.CLEAR}")
+        else:
+            systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR}Invalid option given. Option must be one of either `enable' or `disable'.{systemd_boot_manager.CLEAR}")
     else:
         systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Flag: " + sys.argv[1] + " Not understood.")
         print(HELP)
