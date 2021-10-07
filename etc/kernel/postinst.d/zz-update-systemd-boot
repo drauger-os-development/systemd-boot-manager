@@ -30,18 +30,10 @@ import shutil
 import subprocess
 import json
 import distro
+import systemd_boot_manager
 
-GREEN = "\033[92m"
-RED = "\033[91m"
-CLEAR = "\033[0m"
-YELLOW = "\033[93m"
-BLUE = '\033[94m'
-NAME = GREEN + "systemd-boot-manager" + CLEAR
+
 NEEDED_FILES = ["config", "initrd.img", "System.map", "vmlinuz"]
-WARNING = NAME + "\t" + YELLOW + "WARNING: "
-ERROR = NAME + "\t" + RED + "ERROR: "
-STATUS = NAME + "\t" + BLUE
-SUCCESS = NAME + "\t" + GREEN
 DISTRO = distro.name().replace(" ", "_")
 VERBOSE = False
 
@@ -50,7 +42,6 @@ BOOT_DIR = "/boot/"
 CLEAN_DIR = BOOT_DIR + "efi/loader/entries/"
 LOADER_DIR = BOOT_DIR + "efi/" + DISTRO + "/"
 CONF_FILE = ["/boot/efi/loader/entries/" + DISTRO, ".conf"]
-ENTRY_CONF = "/etc/systemd-boot-manager/default_entry.conf"
 
 # Default Flags
 ROOT_FLAGS = "quiet splash"
@@ -64,11 +55,6 @@ CONF_FILE_CONTENTS = ["title  " + DISTRO, "linux   /" + DISTRO + "/vmlinuz",
 if len(sys.argv) > 1:
     if sys.argv[1] == "-v":
         VERBOSE = True
-
-# Print to stderr
-def __eprint__(*args, **kwargs):
-    """Make it easier for us to print to stderr"""
-    print(*args, file=sys.stderr, **kwargs)
 
 
 def check_for_files(files):
@@ -85,12 +71,12 @@ def check_for_files(files):
 
 def failure(exit_code):
     """Consistent Failure output"""
-    __eprint__(NAME + "\t" + RED + "SYSTEMD-BOOT UPDATES FAILED!" + CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.NAME + "\t" + systemd_boot_manager.RED + "SYSTEMD-BOOT UPDATES FAILED!" + systemd_boot_manager.CLEAR)
     sys.exit(exit_code)
 
 
 def warning(output):
-    __eprint__(WARNING + output + CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + output + systemd_boot_manager.CLEAR)
 
 
 def get_esp_part_used():
@@ -101,15 +87,15 @@ def get_esp_part_used():
 
 # Check to make sure we are running as Python3, not 2
 if sys.version_info[0] == 2:
-    __eprint__(ERROR + "Please run with Python 3 as Python 2 is End-of-Life." + CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Please run with Python 3 as Python 2 is End-of-Life." + systemd_boot_manager.CLEAR)
     sys.exit(2)
 
 if os.path.isfile("/etc/systemd-boot-manager/disable.flag"):
-    __eprint__(WARNING + "systemd-boot-manager is disabled. Exiting without modifying anything." + CLEAR)
-    __eprint__(STATUS + "You can re-enable systemd-boot-manager with `sudo update-systemd-boot --enable'" + CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "systemd-boot-manager is disabled. Exiting without modifying anything." + systemd_boot_manager.CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.STATUS + "You can re-enable systemd-boot-manager with `sudo update-systemd-boot --enable'" + systemd_boot_manager.CLEAR)
     sys.exit(0)
 
-print(STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT" + CLEAR)
+print(systemd_boot_manager.STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT" + systemd_boot_manager.CLEAR)
 # Get our UUID
 with open("/etc/systemd-boot-manager/UUID.conf", "r") as uuid_conf:
     UUID = uuid_conf.read()
@@ -157,7 +143,7 @@ for each in range(len(KERNELS) - 1, -1, -1):
 
 # Check to make sure we have kernels to work with
 if len(KERNELS) < 1:
-    __eprint__(ERROR + "NO KERNELS FOUND IN /boot" + CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "NO KERNELS FOUND IN /boot" + systemd_boot_manager.CLEAR)
     failure(1)
 
 # Perform a nuclear clean to ensure everything is always in perfect sync.
@@ -171,7 +157,7 @@ try:
             except FileNotFoundError:
                 pass
             except PermissionError:
-                __eprint__(ERROR + "CANNOT CLEAN ENTRIES DIRECTORY. RUNNING AS ROOT?")
+                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT CLEAN ENTRIES DIRECTORY. RUNNING AS ROOT?")
                 failure(2)
 except FileNotFoundError:
     warning("PREVIOUS ENTRIES NOT FOUND. NOT CLEANING.")
@@ -181,7 +167,7 @@ try:
 except FileNotFoundError:
     pass
 except PermissionError:
-    __eprint__(ERROR + "CANNOT DELETE LOADER DIRECTORY. RUNNING AS ROOT?")
+    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT DELETE LOADER DIRECTORY. RUNNING AS ROOT?")
     failure(2)
 except NotADirectoryError:
     os.remove(LOADER_DIR)
@@ -191,7 +177,7 @@ try:
 except FileExistsError:
     pass
 except PermissionError:
-    __eprint__(ERROR + "CANNOT REMAKE LOADER DIRECTORY. RUNNING AS ROOT?")
+    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT REMAKE LOADER DIRECTORY. RUNNING AS ROOT?")
     failure(2)
 
 
@@ -213,7 +199,7 @@ LATEST = KERNELS[-1]
 del KERNELS[-1]
 
 # Let the user know what kernel they will be booting with next time
-print(NAME + "\t" + GREEN + LATEST + CLEAR)
+print(systemd_boot_manager.NAME + "\t" + systemd_boot_manager.GREEN + LATEST + systemd_boot_manager.CLEAR)
 
 # Time for the real work
 # We need to make sure the files we need ACTUALLY EXIST first
@@ -232,16 +218,16 @@ if check_for_files(NEEDED_FILES1):
             os.remove(LOADER_DIR + NEEDED_FILES[each[0]])
             shutil.copyfile(NEEDED_FILES1[each[0]], LOADER_DIR + NEEDED_FILES[each[0]])
         except PermissionError:
-            __eprint__(ERROR + "CANNOT COPY LOADER FILES. RUNNING AS ROOT?" + CLEAR)
+            systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT COPY LOADER FILES. RUNNING AS ROOT?" + systemd_boot_manager.CLEAR)
             failure(2)
 else:
-    __eprint__(WARNING + "SOME FILE THAT IS NEEDED DOES NOT EXIST." + CLEAR)
-    __eprint__(WARNING + "IT WILL LIKELY BE GENERATED LATER." + CLEAR)
-    __eprint__(WARNING + "DIFFERING UPDATE." + CLEAR)
-    __eprint__(WARNING + "IF YOU DO NOT GET A SUCCESSFUL UPDATE LATER" + CLEAR)
-    __eprint__(WARNING + "CALL `sudo update-systemd-boot' TO MANUALLY" + CLEAR)
-    __eprint__(WARNING + "TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES" + CLEAR)
-    __eprint__(WARNING + "SOMETHING ELSE MAY BE WRONG." + CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "SOME FILE THAT IS NEEDED DOES NOT EXIST." + systemd_boot_manager.CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "IT WILL LIKELY BE GENERATED LATER." + systemd_boot_manager.CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "DIFFERING UPDATE." + systemd_boot_manager.CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "IF YOU DO NOT GET A SUCCESSFUL UPDATE LATER" + systemd_boot_manager.CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "CALL `sudo update-systemd-boot' TO MANUALLY" + systemd_boot_manager.CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES" + systemd_boot_manager.CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "SOMETHING ELSE MAY BE WRONG." + systemd_boot_manager.CLEAR)
     sys.exit()
 
 # Make sure directory structure is good
@@ -280,7 +266,7 @@ if len(KERNELS) >= 1:
         if REMAINING < LOW_SPACE_LIMIT:
             LOW_SPACE_BREAK = True
             break
-        print(NAME + "\t" + GREEN + VERSION + BLUE + "\t(LEGACY)" + CLEAR)
+        print(systemd_boot_manager.NAME + "\t" + systemd_boot_manager.GREEN + VERSION + systemd_boot_manager.BLUE + "\t(LEGACY)" + systemd_boot_manager.CLEAR)
         for FILE in NEEDED_FILES:
             try:
                 if VERBOSE:
@@ -290,7 +276,7 @@ if len(KERNELS) >= 1:
                 os.remove(LOADER_DIR + FILE)
                 shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION, LOADER_DIR + FILE + "-" + VERSION)
             except PermissionError:
-                __eprint__(ERROR + "CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?")
+                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?")
                 failure(2)
         with open(("-" + VERSION).join(CONF_FILE), "w+") as output:
             line = 0
@@ -319,14 +305,14 @@ if len(KERNELS) >= 1:
 # Now for systemd-boot
 REMAINING = ESP_SIZE - get_esp_part_used()
 if REMAINING < 1048576:
-    __eprint__(ERROR + "NOT ENOUGH SPACE ON DRIVE TO UPDATE SYSTEMD-BOOT")
+    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "NOT ENOUGH SPACE ON DRIVE TO UPDATE SYSTEMD-BOOT")
     failure(1)
-print(STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + CLEAR)
+print(systemd_boot_manager.STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + systemd_boot_manager.CLEAR)
 os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
 try:
     subprocess.check_call(["bootctl", "update"])
 except subprocess.CalledProcessError:
-    __eprint__(ERROR + "BOOTCTL HAS HAD AN ERROR!" + CLEAR)
+    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "BOOTCTL HAS HAD AN ERROR!" + systemd_boot_manager.CLEAR)
     failure(2)
 
 # Get default bootloader entry
@@ -355,8 +341,8 @@ for each in ENTRIES:
 # Read Default.conf, find what default entry SHOULD be
 # We do this so that if this entry is lost after a CMOS clear, it can be restored.
 INTENDED_DEFAULT = "#"
-if os.path.isfile(ENTRY_CONF):
-    with open(ENTRY_CONF, "r") as conf:
+if os.path.isfile(systemd_boot_manager.DEFAULTS_FILE):
+    with open(systemd_boot_manager.DEFAULTS_FILE, "r") as conf:
         INTENDED_DEFAULT = conf.read().split()[0]
 
 # Check default entry, change if needed
@@ -368,9 +354,9 @@ if INTENDED_DEFAULT != "#":
         try:
             subprocess.check_call(["bootctl", "set-default", INTENDED_DEFAULT])
         except subprocess.CalledProcessError:
-            __eprint__(ERROR + "CANNOT SET INTENDED DEFAULT" + CLEAR)
+            systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT SET INTENDED DEFAULT" + systemd_boot_manager.CLEAR)
             failure(1)
-        print(SUCCESS + "SUCCESSFULLY RESET DEFAULT BOOT ENTRY" + CLEAR)
+        print(systemd_boot_manager.SUCCESS + "SUCCESSFULLY RESET DEFAULT BOOT ENTRY" + systemd_boot_manager.CLEAR)
 
 
 
@@ -378,4 +364,4 @@ if LOW_SPACE_BREAK:
     warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS")
     warning("YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING")
     warning("ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING.")
-print(SUCCESS + "SYSTEMD-BOOT UPDATES COMPLETE!" + CLEAR)
+print(systemd_boot_manager.SUCCESS + "SYSTEMD-BOOT UPDATES COMPLETE!" + systemd_boot_manager.CLEAR)
