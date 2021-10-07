@@ -3,7 +3,7 @@
 #
 #  postinst.sh
 #
-#  Copyright 2020 Thomas Castleman <contact@draugeros.org>
+#  Copyright 2021 Thomas Castleman <contact@draugeros.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -23,11 +23,14 @@
 #
 set -e
 case "$1" in
-	configure)
+	configure|update)
 		if [ -f /etc/systemd-boot-manager/UUID.conf ]; then
 			echo "Generating UUID configuration file"
 			root=$(lsblk --output NAME,MOUNTPOINT --paths --list | grep "/$" | awk '{print $1}')
 			echo "$(blkid -s PARTUUID -o value $root)" > /etc/systemd-boot-manager/UUID.conf
+		fi
+		if [ ! -f /etc/systemd-boot-manager/disable.flag ]; then
+			rm /etc/systemd-boot-manager/disable.flag
 		fi
 	;;
 	abort-upgrade|abort-remove|abort-deconfigure)

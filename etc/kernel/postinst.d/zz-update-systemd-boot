@@ -90,7 +90,7 @@ if sys.version_info[0] == 2:
     systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Please run with Python 3 as Python 2 is End-of-Life." + systemd_boot_manager.CLEAR)
     sys.exit(2)
 
-if os.path.isfile("/etc/systemd-boot-manager/disable.flag"):
+if not systemd_boot_manager.is_enabled():
     systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "systemd-boot-manager is disabled. Exiting without modifying anything." + systemd_boot_manager.CLEAR)
     systemd_boot_manager.eprint(systemd_boot_manager.STATUS + "You can re-enable systemd-boot-manager with `sudo update-systemd-boot --enable'" + systemd_boot_manager.CLEAR)
     sys.exit(0)

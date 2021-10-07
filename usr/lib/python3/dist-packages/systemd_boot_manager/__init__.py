@@ -46,3 +46,18 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
+def is_enabled():
+    """Check if systemd-boot-manager is enabled"""
+    if not os.path.exists(CONFIG_DIR + "/enabled.conf"):
+        try:
+            with open(CONFIG_DIR + "/enabled.conf", "w") as file:
+                file.write("enabled")
+        except PermissionError:
+            eprint(f"{ ERROR }{ CONFIG_DIR }/enabled.conf does not exist.")
+            eprint(f"{ ERROR }This defaults systemd-boot-manager to enabled, but")
+            eprint(f"{ ERROR }the file cannot be created to allow changing of this setting.")
+            eprint(f"{ ERROR }Try running `sudo systemd-boot-manager --repair'.")
+        finally:
+            return True
+    with open(CONFIG_DIR + "/enabled.conf", "r") as file:
+        return bool(file.read())

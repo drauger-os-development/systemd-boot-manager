@@ -268,6 +268,18 @@ def repair(verbose):
     check(verbose)
 
 
+def set_enabled():
+    """Set systemd-boot-manager as enabled"""
+    with open("/etc/systemd-boot-manager/enabled.conf", "w") as file:
+        file.write("enabled")
+
+
+def set_disabled():
+    """Set systemd-boot-manager as disabled"""
+    with open("/etc/systemd-boot-manager/enabled.conf", "w") as file:
+        file.write("")
+
+
 def set_as_default_entry(entry):
     """Set 'entry' as the default bootloader entry"""
     if not is_root():
@@ -368,8 +380,8 @@ if ARGC >= 2:
         if not is_root():
             systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to be run this program as root to enable systemd-boot-manager." + systemd_boot_manager.CLEAR)
             sys.exit(2)
-        if os.path.isfile("/etc/systemd-boot-manager/disable.flag"):
-            os.remove("/etc/systemd-boot-manager/disable.flag")
+        if not systemd_boot_manager.is_enabled():
+            set_enabled()
             print(systemd_boot_manager.SUCCESS + "systemd-boot-manager enabled!" + systemd_boot_manager.CLEAR)
             sys.exit(0)
         else:
@@ -379,12 +391,11 @@ if ARGC >= 2:
         if not is_root():
             systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to be run this program as root to disable systemd-boot-manager." + systemd_boot_manager.CLEAR)
             sys.exit(2)
-        if os.path.isfile("/etc/systemd-boot-manager/disable.flag"):
+        if not systemd_boot_manager.is_enabled():
             systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "systemd-boot-manager already disabled." + systemd_boot_manager.CLEAR)
             sys.exit(1)
         else:
-            with open("/etc/systemd-boot-manager/disable.flag", "w+") as file:
-                file.write("")
+            set_disabled()
             print(systemd_boot_manager.SUCCESS + "systemd-boot-manager disabled!" + systemd_boot_manager.CLEAR)
             sys.exit(0)
     else:
