@@ -25,6 +25,7 @@
 import os
 import sys
 import subprocess
+import distro
 
 
 GREEN = "\033[92m"
@@ -40,6 +41,9 @@ SUCCESS = NAME + "\t" + GREEN
 
 CONFIG_DIR = "/etc/systemd-boot-manager"
 DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
+
+
+DISTRO = distro.name().replace(" ", "_")
 
 
 def eprint(*args, **kwargs):
