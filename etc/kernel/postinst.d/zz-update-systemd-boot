@@ -250,6 +250,8 @@ with open("_Recovery".join(CONF_FILE), "w+") as output:
     for each in enumerate(CONF_FILE_CONTENTS):
         if each[0] == 0:
             output.write(CONF_FILE_CONTENTS[each[0]] + " Recovery")
+        elif each[0] == len(CONF_FILE_CONTENTS) - 1:
+            output.write(CONF_FILE_CONTENTS[each[0]] + UUID + " " + RECOVERY_FLAGS)
         else:
             output.write(CONF_FILE_CONTENTS[each[0]])
         output.write("\n")
