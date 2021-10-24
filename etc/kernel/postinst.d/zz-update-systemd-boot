@@ -97,7 +97,7 @@ if not systemd_boot_manager.is_enabled():
 
 print(systemd_boot_manager.STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT" + systemd_boot_manager.CLEAR)
 # Get our UUID
-with open("/etc/systemd-boot-manager/UUID.conf", "r") as uuid_conf:
+with open(f"{systemd_boot_manager.CONFIG_DIR}/UUID.conf", "r") as uuid_conf:
     UUID = uuid_conf.read()
 
 # Make sure that if there is a trailing new line, we parse it out

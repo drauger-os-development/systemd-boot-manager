@@ -198,13 +198,13 @@ def repair(verbose):
 
 def set_enabled():
     """Set systemd-boot-manager as enabled"""
-    with open("/etc/systemd-boot-manager/enabled.conf", "w") as file:
+    with open(f"{systemd_boot_manager.CONFIG_DIR}/enabled.conf", "w") as file:
         file.write("enabled")
 
 
 def set_disabled():
     """Set systemd-boot-manager as disabled"""
-    with open("/etc/systemd-boot-manager/enabled.conf", "w") as file:
+    with open(f"{systemd_boot_manager.CONFIG_DIR}/enabled.conf", "w") as file:
         file.write("")
 
 
