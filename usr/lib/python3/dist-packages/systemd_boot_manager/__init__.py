@@ -94,7 +94,6 @@ def update_defaults_file(default_entry, verbose=False):
             conf.write(DEFAULTS_FILE_ADDON)
     except (FileNotFoundError, PermissionError) as err:
         eprint(ERROR + "An Unwarrented error has occured. Please try again later." + CLEAR)
-        sys.exit(2)
 
 
 def get_boot_entries(verbose=False):
@@ -136,7 +135,6 @@ def set_as_default_entry(entry, edit_file=True):
         if entries[each]["id"] == entry:
             if entries[each]["default"] is True:
                 eprint(BLUE + "Already Default Entry" + CLEAR)
-                sys.exit()
             # Set as default here
             if edit_file:
                 update_defaults_file(entry)
@@ -146,9 +144,7 @@ def set_as_default_entry(entry, edit_file=True):
                 eprint(ERROR + "CANNOT SET INTENDED DEFAULT" + CLEAR)
                 eprint("Error was:")
                 eprint(err.output)
-                sys.exit(err.returncode)
             print(GREEN + "SUCCESS!" + CLEAR)
-            sys.exit()
     eprint(ERROR + "ID Not found. Please provide a valid ID. IDs can be found using `update-systemd-boot --list'.")
 
 
