@@ -360,18 +360,16 @@ if INTENDED_DEFAULT != "#":
         warning("WRONG BOOT ENTRY DEFAULT DETECTED")
         warning("DEFAULT WAS: " + DEFAULT)
         warning("RESETTING DEFAULT")
-        bypass = False
         try:
-            subprocess.check_output(["bootctl", "set-default", INTENDED_DEFAULT])
+            subprocess.check_output(f"bootctl set-default {INTENDED_DEFAULT} 2>&1",
+                                    shell=True)
         except subprocess.CalledProcessError as e:
             systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT SET INTENDED DEFAULT" + systemd_boot_manager.CLEAR)
-            if "supported boot loader" not in str(e.stderr):
+            if "supported boot loader" not in str(e.stdout):
                 failure(1)
             systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "NOT BOOTED WITH SUPPORTED BOOT LOADER" + systemd_boot_manager.CLEAR)
-            bypass = True
 
-        if not bypass:
-            print(systemd_boot_manager.SUCCESS + "SUCCESSFULLY RESET DEFAULT BOOT ENTRY" + systemd_boot_manager.CLEAR)
+        print(systemd_boot_manager.SUCCESS + "SUCCESSFULLY RESET DEFAULT BOOT ENTRY" + systemd_boot_manager.CLEAR)
 
 
 
