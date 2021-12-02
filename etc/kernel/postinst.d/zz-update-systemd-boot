@@ -107,7 +107,8 @@ UUID = UUID.split("\n")[0]
 PARTS = json.loads(subprocess.check_output(["lsblk", "--output",
                                             "TYPE,SIZE,NAME,MOUNTPOINT",
                                             "--json",
-                                            "--bytes"]).decode().replace("I","i"))["blockdevices"]
+                                            "--bytes"]).decode().replace("I",
+                                                                         "i"))["blockdevices"]
 
 for each in range(len(PARTS) - 1, -1, -1):
     if ((PARTS[each]["type"] != "disk") or ("children" not in PARTS[each])):
@@ -213,10 +214,12 @@ if check_for_files(NEEDED_FILES1):
         try:
             if VERBOSE:
                 print(NEEDED_FILES1[each[0]] + " -> " + LOADER_DIR + NEEDED_FILES[each[0]])
-            shutil.copyfile(NEEDED_FILES1[each[0]], LOADER_DIR + NEEDED_FILES[each[0]])
+            shutil.copyfile(NEEDED_FILES1[each[0]],
+                            LOADER_DIR + NEEDED_FILES[each[0]])
         except FileExistsError:
             os.remove(LOADER_DIR + NEEDED_FILES[each[0]])
-            shutil.copyfile(NEEDED_FILES1[each[0]], LOADER_DIR + NEEDED_FILES[each[0]])
+            shutil.copyfile(NEEDED_FILES1[each[0]],
+                            LOADER_DIR + NEEDED_FILES[each[0]])
         except PermissionError:
             systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT COPY LOADER FILES. RUNNING AS ROOT?" + systemd_boot_manager.CLEAR)
             failure(2)
@@ -232,14 +235,14 @@ else:
 
 # Make sure directory structure is good
 if not os.path.exists(CLEAN_DIR):
-    dir = ""
+    directory = ""
     for each in CLEAN_DIR.split("/"):
-        if dir == "/":
-            dir = dir + each
+        if directory == "/":
+            directory = directory + each
         else:
-            dir = dir + "/" + each
+            directory = directory + "/" + each
         try:
-            os.mkdir(dir)
+            os.mkdir(directory)
         except FileExistsError:
             pass
 
@@ -273,10 +276,12 @@ if len(KERNELS) >= 1:
             try:
                 if VERBOSE:
                     print(BOOT_DIR + FILE + "-" + VERSION + " -> " + LOADER_DIR + FILE + "-" + VERSION)
-                shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION, LOADER_DIR + FILE + "-" + VERSION)
+                shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
+                                LOADER_DIR + FILE + "-" + VERSION)
             except FileExistsError:
                 os.remove(LOADER_DIR + FILE)
-                shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION, LOADER_DIR + FILE + "-" + VERSION)
+                shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
+                                LOADER_DIR + FILE + "-" + VERSION)
             except PermissionError:
                 systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?")
                 failure(2)
@@ -291,7 +296,8 @@ if len(KERNELS) >= 1:
                     output.write(each + UUID + " " + ROOT_FLAGS)
                 line += 1
         # Also make sure they have Legacy recovery. Cause it can be a life saver.
-        with open(("-" + VERSION + "_Recovery").join(CONF_FILE), "w+") as output:
+        with open(("-" + VERSION + "_Recovery").join(CONF_FILE),
+                  "w+") as output:
             line = 0
             for each in CONF_FILE_CONTENTS:
                 if line == 0:
@@ -318,7 +324,8 @@ except subprocess.CalledProcessError:
     failure(2)
 
 # Get default bootloader entry
-DEFAULT = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
+DEFAULT = subprocess.check_output(["bootctl", "list",
+                                   "--no-pager"]).decode().split("\n")
 ENTRIES = []
 AE = []
 TOGGLE = False
