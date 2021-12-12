@@ -333,7 +333,7 @@ elif "systemd-boot-manager" in sys.argv[0]:
             else:
                 systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR}Invalid option given. Option must be one of either `enable' or `disable'.{systemd_boot_manager.CLEAR}")
         else:
-            systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Flag: " + sys.argv[1] + " Not understood.")
+            systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Flag: " + sys.argv[1] + " Not understood." + systemd_boot_manager.CLEAR)
             print(HELP)
             sys.exit(1)
     else:
