@@ -30,5 +30,6 @@ if systemd_boot_manager.is_enabled():
     if not systemd_boot_manager.check_default_entry():
         systemd_boot_manager.eprint(f"{ systemd_boot_manager.ERROR }UEFI-CONFIGURED DEFAULT BOOT ENTRY DOES NOT MATCH DEFAULT ON FILE{ systemd_boot_manager.CLEAR }")
         systemd_boot_manager.eprint(f"{ systemd_boot_manager.ERROR }CHANGING TO MATCH ENTRY ON FILE{ systemd_boot_manager.CLEAR }")
+        systemd_boot_manager.eprint(f"{ systemd_boot_manager.ERROR }DEFAULT WAS: { systemd_boot_manager.get_default_boot_entry(False) }")
         intended_default = systemd_boot_manager.read_defaults_file()
         systemd_boot_manager.set_as_default_entry(intended_default, edit_file=False)
