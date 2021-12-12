@@ -145,7 +145,7 @@ def set_as_default_entry(entry, edit_file=True):
                 eprint("Error was:")
                 eprint(err.output)
             print(GREEN + "SUCCESS!" + CLEAR)
-    eprint(ERROR + "ID Not found. Please provide a valid ID. IDs can be found using `update-systemd-boot --list'.")
+    eprint(ERROR + "ID Not found. Please provide a valid ID. IDs can be found using `systemd-boot-manager --list'.")
 
 
 def read_defaults_file():
