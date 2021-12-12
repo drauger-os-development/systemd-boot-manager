@@ -32,6 +32,7 @@ case "$1" in
 		if [ ! -f /etc/systemd-boot-manager/disable.flag ]; then
 			rm /etc/systemd-boot-manager/disable.flag
 		fi
+		systemctl daemon-reload
 	;;
 	abort-upgrade|abort-remove|abort-deconfigure)
     ;;
