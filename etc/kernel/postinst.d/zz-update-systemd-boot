@@ -162,7 +162,7 @@ BOOT_DIR = "/boot/"
 EFI_DIR = BOOT_DIR + "efi"
 SD_LOADER_DIR = EFI_DIR + "/loader"
 CLEAN_DIR = SD_LOADER_DIR + "/entries/"
-LOADER_DIR = EFI_DIR + systemd_boot_manager.DISTRO + "/"
+LOADER_DIR = EFI_DIR + "/" + systemd_boot_manager.DISTRO + "/"
 CONF_FILE = [CLEAN_DIR + systemd_boot_manager.DISTRO, ".conf"]
 
 # Default Flags
@@ -520,10 +520,18 @@ if INTENDED_DEFAULT != "#":
 
         print(systemd_boot_manager.SUCCESS + "SUCCESSFULLY RESET DEFAULT BOOT ENTRY" + systemd_boot_manager.CLEAR)
 
-
+other_oss = systemd_boot_manager.get_os_prober()
 
 if LOW_SPACE_BREAK:
-    warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS")
+    warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS.")
     warning("YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING")
     warning("ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING.")
+    if other_oss != [[""]]:
+        warning("YOU WILL STILL BE ABLE TO BOOT YOUR OTHER OS INSTALLS, BUT")
+        warning("YOU WILL HAVE TO GO THROUGH THE EFI BOOT MANAGER TO DO SO.")
+else:
+    # other operating systems are our last priority. Users can dual-boot using their EFI boot manager if they have to
+    # Windows first since it has a standard EFI layout we can work with on any installation
+    pass
+
 print(systemd_boot_manager.SUCCESS + "SYSTEMD-BOOT UPDATES COMPLETE!" + systemd_boot_manager.CLEAR)
