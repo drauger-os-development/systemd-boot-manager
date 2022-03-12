@@ -3,7 +3,7 @@
 #
 #  zz-update-systemd-boot
 #
-#  Copyright 2021 Thomas Castleman <contact@draugeros.org>
+#  Copyright 2022 Thomas Castleman <contact@draugeros.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -159,9 +159,11 @@ VERBOSE = False
 
 # Important Dirs/Files
 BOOT_DIR = "/boot/"
-CLEAN_DIR = BOOT_DIR + "efi/loader/entries/"
-LOADER_DIR = BOOT_DIR + "efi/" + systemd_boot_manager.DISTRO + "/"
-CONF_FILE = ["/boot/efi/loader/entries/" + systemd_boot_manager.DISTRO, ".conf"]
+EFI_DIR = BOOT_DIR + "efi"
+SD_LOADER_DIR = EFI_DIR + "/loader"
+CLEAN_DIR = SD_LOADER_DIR + "/entries/"
+LOADER_DIR = EFI_DIR + systemd_boot_manager.DISTRO + "/"
+CONF_FILE = [CLEAN_DIR + systemd_boot_manager.DISTRO, ".conf"]
 
 # Default Flags
 ROOT_FLAGS = "quiet splash"
@@ -203,7 +205,7 @@ def warning(output):
 
 def get_esp_part_used():
     """Get amount of ESP partition used"""
-    used = subprocess.check_output(["du", "-bs", "/boot/efi"]).decode()
+    used = subprocess.check_output(["du", "-bs", EFI_DIR]).decode()
     return int(used.split("\t")[0])
 
 
@@ -241,7 +243,7 @@ for each in PARTS:
     for each1 in each["children"]:
         if "mountpoint" not in each1:
             continue
-        if each1["mountpoint"] == "/boot/efi":
+        if each1["mountpoint"] == EFI_DIR:
             ESP_SIZE = each1["size"]
             break
     if ESP_SIZE != 0:
@@ -381,6 +383,29 @@ with open("_Recovery".join(CONF_FILE), "w+") as output:
             output.write(CONF_FILE_CONTENTS[each[0]])
         output.write("\n")
 
+# Check to see if loader file exists. If not, make it:
+if not os.path.exists(SD_LOADER_DIR + "/loader.conf"):
+    try:
+        with open("/etc/systemd-boot-manager/loader.conf", "r") as file:
+            contents = file.read()
+    except FileNotFoundError:
+        systemd_boot_manager.eprint(systemd_boot_manager.ERROR, end="")
+        systemd_boot_manager.eprint("loader.conf config file not found in /etc/systemd-boot-manager")
+        systemd_boot_manager.eprint(systemd_boot_manager.ERROR, end="")
+        systemd_boot_manager.eprint("please reinstall systemd-boot-manager and try again", end="")
+        systemd_boot_manager.eprint(systemd_boot_manager.CLEAR)
+        failure(2)
+    contents = contents.replace("{distro}", systemd_boot_manager.DISTRO)
+    contents = contents.split("\n")
+    for each in range(len(contents) - 1, -1, -1):
+        if len(contents[each]) < 1:
+            continue
+        if contents[each][0] == "#":
+            del contents[each]
+    contents = "\n".join(contents)
+    with open(SD_LOADER_DIR + "/loader.conf", "w") as file:
+        file.write(contents)
+
 
 # Legacy Kernel Support
 LOW_SPACE_BREAK = False
@@ -405,7 +430,9 @@ if len(KERNELS) >= 1:
                 shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
                                 LOADER_DIR + FILE + "-" + VERSION)
             except PermissionError:
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?")
+                systemd_boot_manager.eprint(systemd_boot_manager.ERROR, end="")
+                systemd_boot_manager.eprint("CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?", end="")
+                systemd_boot_manager.eprint(systemd_boot_manager.CLEAR)
                 failure(2)
         with open(("-" + VERSION).join(CONF_FILE), "w+") as output:
             line = 0
