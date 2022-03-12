@@ -168,3 +168,11 @@ def check_default_entry(verbose=False):
         return True
     else:
         return False
+
+def get_os_prober():
+    """Provide the output of `os-prober` in a Python native format"""
+    output = subprocess.check_output(["os-prober"]).decode()
+    output = output.split("\n")
+    for each in enumerate(output):
+        output[each[0]] = output[each[0]].split(":")
+    return output
