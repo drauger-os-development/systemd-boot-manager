@@ -553,6 +553,8 @@ else:
     # Windows first since it has a standard EFI layout we can work with on any installation
     mountpoint = "/tmp/sdm-mountpoint"
     for each in other_oss:
+        systemd = False
+        grub = None
         if len(each) < 4:
             continue
         if "@" in each[0]:
@@ -601,11 +603,95 @@ else:
             __umount__(mountpoint)
             __mount__(fstab, mountpoint)
             # NOW we need to figure out what bootloader is in use
+            dirs = os.listdir(mountpoint + "/EFI")
+            if "systemd" in dirs:
+                # know they are using systemd-boot as well. We can just clone files and make life easy
+                systemd = True
+                dirs = os.listdir(mountpoint)
+                del dirs[dirs.index("EFI")]
+                del dirs[dirs.index("loader")]
+                for each in dirs:
+                    shutil.copytree(mountpoint + "/" + each,
+                                    EFI_DIR + "/" + each)
+                dirs = os.listdir(mountpoint + "/loader/entries")
+                for each in dirs:
+                    count = 0
+                    # copy over unique files
+                    # there is likely a faster way to do this, but this way should at least:
+                    # 1: be reliable
+                    # 2: prevent file collisions
+                    # 3: prevent duplicate systemd-boot entries
+                    while True:
+                        if count == 0:
+                            if not os.path.exists(CLEAN_DIR + each):
+                                shutil.copy(mountpoint + "/loader/entries/" + each,
+                                            CLEAN_DIR + each)
+                                break
+                            with open(mountpoint + "/loader/entries/" + each,
+                                      "r") as file:
+                                contents1 = file.read()
+                            with open(CLEAN_DIR + each, "r") as file:
+                                contents2 = file.read()
+                            if contents1 == contents2:
+                                # The files match, skip
+                                break
+                        else:
+                            name = f"-{count}.".join(each.split("."))
+                            if not os.path.exists(CLEAN_DIR + name):
+                                shutil.copy(mountpoint + "/loader/entries/" + each,
+                                            CLEAN_DIR + name)
+                                break
+                            with open(mountpoint + "/loader/entries/" + each,
+                                      "r") as file:
+                                contents1 = file.read()
+                            with open(CLEAN_DIR + name, "r") as file:
+                                contents2 = file.read()
+                            if contents1 == contents2:
+                                # The files match, skip
+                                break
+                        count += 1
+            else:
+                # systemd-boot is NOT being used
+                del dirs[dirs.index("BOOT")]
+                del dirs[dirs.index("Linux")]
+                for each in dirs:
+                    dirs2 = os.listdir(mountpoint + "/EFI/" + each)
+                    for each1 in dirs2:
+                        if each1.lower() == "grubx64.efi":
+                            grub = "/EFI/" + each + "/" + each1
+                    if grub is not None:
+                        count = 0
+                        while True:
+                            if count == 0:
+                                if not os.path.exists(EFI_DIR + "/" + each):
+                                    shutil.copytree(mountpoint + "/EFI/" + each,
+                                                EFI_DIR + "/" + each)
+                                    break
+                            else:
+                                name = f"-{count}.".join(each.split("."))
+                                if not os.path.exists(EFI_DIR + "/" + name):
+                                    shutil.copytree(mountpoint + "/EFI/" + each,
+                                                EFI_DIR + "/" + name)
+                                    break
+                            count += 1
+                        break
+                # At this point we have detected either Windows, systemd-boot, or GRUB.
+                # That should cover most Linux OSs and Windows which are the biggest issues.
+
         # make loader file
-        with open(CLEAN_DIR + each[2] + ".conf", "w") as file:
-            file.write(f"title {each[2]}")
-            if each[2] == "Windows":
-                file.write("efi /EFI/Microsoft/Boot/bootmgfw.efi")
+        if not systemd:
+            with open(CLEAN_DIR + each[2] + ".conf", "w") as file:
+                file.write(f"title {each[1]}\n")
+                if grub is None:
+                    # This SHOULD be Windows. An OS like MacOS or a Linux distro using
+                    # an unsupported bootloader will result an an empty entry.
+                    if each[2] == "Windows":
+                        file.write("efi /EFI/Microsoft/Boot/bootmgfw.efi")
+                else:
+                    # they are using GRUB. Chain-load it.
+                    file.write(f"linux {grub}")
+
+
 
 
 
