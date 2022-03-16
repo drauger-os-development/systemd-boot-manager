@@ -563,13 +563,20 @@ else:
             part = each[0]
         if not os.path.exists(mountpoint):
             os.mkdir(mountpoint)
-        __mount__(part, mountpoint)
+        try:
+            __mount__(part, mountpoint)
+        except subprocess.CalledProcessError:
+            __umount__(mountpoint)
+            __mount__(part, mountpoint)
         if each[2] == "Windows":
             # copy over Windows files as needed
             shutil.copytree(mountpoint + "/EFI/Microsoft",
                             EFI_DIR + "/EFI/Microsoft")
         else:
-            os.mkdir(EFI_DIR + "/EFI/" + each[2])
+            try:
+                os.mkdir(EFI_DIR + "/EFI/" + each[2])
+            except FileExistsError:
+                pass
             # read OS FSTAB
             with open(mountpoint + "/etc/fstab", "r") as file:
                 fstab = file.read().split("\n")
