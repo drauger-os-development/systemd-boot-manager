@@ -192,10 +192,15 @@ def check_for_files(files):
             return False
     return True
 
+def clean_up():
+    """This function just makes sure things are unmounted and temporary files are deleted."""
+    __umount__("/tmp/sdm-mountpoint")
+
 
 def failure(exit_code):
     """Consistent Failure output"""
     systemd_boot_manager.eprint(systemd_boot_manager.NAME + "\t" + systemd_boot_manager.RED + "SYSTEMD-BOOT UPDATES FAILED!" + systemd_boot_manager.CLEAR)
+    clean_up()
     sys.exit(exit_code)
 
 
@@ -224,8 +229,12 @@ def __mount__(device, path_dir):
 def __umount__(path_dir):
     try:
         subprocess.check_call(["umount", path_dir])
-    except CalledProcessError:
-        subprocess.check_call(["umount", "-l", path_dir])
+    except subprocess.CalledProcessError:
+        try:
+            subprocess.check_call(["umount", "-l", path_dir])
+        except subprocess.CalledProcessError as err:
+            print(err.returncode)
+
 
 
 # Check to make sure we are running as Python3, not 2
@@ -703,5 +712,5 @@ else:
 
 
 
-
+clean_up()
 print(systemd_boot_manager.SUCCESS + "SYSTEMD-BOOT UPDATES COMPLETE!" + systemd_boot_manager.CLEAR)
