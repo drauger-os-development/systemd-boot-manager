@@ -221,18 +221,22 @@ def __mount__(device, path_dir):
     Calling Mount with check_call is the safer option.
     """
     try:
-        subprocess.check_call(["mount", device, path_dir])
+        subprocess.check_call(["mount", device, path_dir],
+                              stderr=subprocess.DEVNULL)
     except subprocess.CalledProcessError:
         __umount__(path_dir)
-        subprocess.check_call(["mount", device, path_dir])
+        subprocess.check_call(["mount", device, path_dir],
+                              stderr=subprocess.DEVNULL)
 
 
 def __umount__(path_dir):
     try:
-        subprocess.check_call(["umount", path_dir])
+        subprocess.check_call(["umount", path_dir],
+                              stderr=subprocess.DEVNULL)
     except subprocess.CalledProcessError:
         try:
-            subprocess.check_call(["umount", "-l", path_dir])
+            subprocess.check_call(["umount", "-l", path_dir],
+                                  stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError as err:
             print(err.returncode)
 
