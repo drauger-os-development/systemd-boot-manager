@@ -545,6 +545,7 @@ else:
     # Windows first since it has a standard EFI layout we can work with on any installation
     mountpoint = "/tmp/sdm-mountpoint"
     for each in other_oss:
+        print(systemd_boot_manager.STATUS + f"CONFIGURING {each[1]}" + systemd_boot_manager.CLEAR)
         systemd = False
         grub = None
         if len(each) < 4:
