@@ -672,8 +672,13 @@ else:
                     if grub is not None:
                         count = 0
                         while True:
-                            shutil.copytree(mountpoint + "/EFI/" + each,
-                                            EFI_DIR + "/" + each)
+                            src = mountpoint + "/EFI/" + each
+                            dest = EFI_DIR + "/" + each
+                            try:
+                                shutil.copytree(src, dest)
+                            except FileExistsError:
+                                os.remove(dest)
+                                shutil.copytree(src, dest)
                         break
                 # At this point we have detected either Windows, systemd-boot, or GRUB.
                 # That should cover most Linux OSs and Windows which are the biggest issues.
