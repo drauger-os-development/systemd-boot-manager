@@ -700,6 +700,8 @@ else:
                 else:
                     # they are using GRUB. Chain-load it.
                     file.write(f"linux {grub}")
+                # ending newline
+                file.write("\n")
 
 clean_up()
 print(systemd_boot_manager.SUCCESS + "SYSTEMD-BOOT UPDATES COMPLETE!" + systemd_boot_manager.CLEAR)
