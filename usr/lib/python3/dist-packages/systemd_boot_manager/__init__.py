@@ -169,6 +169,7 @@ def check_default_entry(verbose=False):
     else:
         return False
 
+
 def get_os_prober():
     """Provide the output of `os-prober` in a Python native format"""
     output = subprocess.check_output(["os-prober"]).decode()
