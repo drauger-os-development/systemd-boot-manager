@@ -222,7 +222,7 @@ def __mount__(device, path_dir):
     """
     try:
         subprocess.check_call(["mount", device, path_dir])
-    except CalledProcessError:
+    except subprocess.CalledProcessError:
         __umount__(path_dir)
         subprocess.check_call(["mount", device, path_dir])
 
@@ -672,18 +672,8 @@ else:
                     if grub is not None:
                         count = 0
                         while True:
-                            if count == 0:
-                                if not os.path.exists(EFI_DIR + "/" + each):
-                                    shutil.copytree(mountpoint + "/EFI/" + each,
-                                                EFI_DIR + "/" + each)
-                                    break
-                            else:
-                                name = f"-{count}.".join(each.split("."))
-                                if not os.path.exists(EFI_DIR + "/" + name):
-                                    shutil.copytree(mountpoint + "/EFI/" + each,
-                                                EFI_DIR + "/" + name)
-                                    break
-                            count += 1
+                            shutil.copytree(mountpoint + "/EFI/" + each,
+                                            EFI_DIR + "/" + each)
                         break
                 # At this point we have detected either Windows, systemd-boot, or GRUB.
                 # That should cover most Linux OSs and Windows which are the biggest issues.
