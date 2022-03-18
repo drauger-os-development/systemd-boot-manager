@@ -27,6 +27,7 @@ import sys
 import subprocess
 import os
 import json
+import shlex
 import systemd_boot_manager
 
 
@@ -35,19 +36,21 @@ UUID_FILE = systemd_boot_manager.CONFIG_DIR + "/UUID.conf"
 VERSION = "0.2.5-alpha2"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
+        --apply-loader-config                            Apply loader.conf config
     -c, --check                                          Check systemd-boot-manager settings.
     -e, --enable                                         Enable systemd-boot-manager.
         --enforce-default-entry=[enable|disable]         Make sure the default boot entry is set correctly
-                                                         at every boot
+                                                         at every boot.
     -d, --default [bootloader entry]                     Set as default bootloader entry.
         --disable                                        Disable systemd-boot-manager.
     -h, --help                                           Print this help dialog and exit.
     -l, --list                                           List all bootloader entries.
     -r, --repair                                         Repair systemd-boot-manager settings and systemd-boot.
     -s, --show-settings                                  Show current settings.
+    -t, --timeout [timeout in seconds]                   Set boot menu timeout in seconds.
     -u, --update                                         Update systemd-boot, default action.
     -v, --version                                        Print current version and exit.
-    -V, --verbose                                        Print what is being done verbosely"""
+    -V, --verbose                                        Print what is being done verbosely."""
 
 
 if sys.version_info[0] == 2:
@@ -71,6 +74,55 @@ def trigger(verbose):
         subprocess.check_call(command)
     except subprocess.CalledProcessError as err:
         sys.exit(err.returncode)
+
+
+def set_timeout(timeout=5, verbose=False):
+    """Set bootloader menu timeout"""
+    if not timeout.isnumeric():
+        systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR} {timeout}: not a positive integer.")
+        sys.exit(2)
+    if int(timeout) < 0:
+        systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR} {timeout}: not a positive integer.")
+        sys.exit(2)
+    if verbose:
+        print("Read config file...")
+    with open(systemd_boot_manager.CONFIG_DIR + "/loader.conf", "r") as file:
+        contents = file.read().split("\n")
+    if verbose:
+        print("Parse config file...")
+    for each in range(len(contents) - 1, -1, -1):
+        contents[each] = shlex.split(contents[each])
+    if verbose:
+        print("Modifying config...")
+    for each in range(len(contents) - 1, -1, -1):
+        if len(contents[each]) > 0:
+            if contents[each][0] == "timeout":
+                contents[each][1] = timeout
+                break
+        else:
+            del contents[each]
+    if verbose:
+        print("Reconstructing and overwriting config file...")
+    for each in range(len(contents) - 1, -1, -1):
+        contents[each] = " ".join(contents[each])
+    with open(systemd_boot_manager.CONFIG_DIR + "/loader.conf", "w") as file:
+        file.write("\n".join(contents))
+    print(f"{systemd_boot_manager.SUCCESS} TIMEOUT SUCCESSFULLY CONFIGURED {systemd_boot_manager.CLEAR}")
+    print(f"{systemd_boot_manager.NAME}\t Run: `sudo systemd-boot-manager --apply-loader-config' to apply config.")
+
+
+def apply_loader(verbose=False):
+    """Apply Loader config"""
+    if verbose:
+        print("Removing old loader config file...")
+    try:
+        os.remove("/boot/efi/loader/loader.conf")
+    except FileNotFoundError:
+        if verbose:
+            print("File already missing. Continuing...")
+    systemd_boot_manager.check_loader(verbose=verbose)
+    print(f"{systemd_boot_manager.SUCCESS} LOADER CONFIG SUCCESSFULLY APPLIED!")
+
 
 
 def _get_devices():
@@ -192,6 +244,7 @@ def repair(verbose):
     # Make them permanent
     print(systemd_boot_manager.BLUE + "WRITING SETTINGS TO DISK" + systemd_boot_manager.CLEAR)
     generate_settings(UUID, default_entry=default_entry, verbose=verbose)
+    systemd_boot_manager.check_loader(verbose=verbose)
     print("\n")
     check(verbose)
 
@@ -321,7 +374,7 @@ elif "systemd-boot-manager" in sys.argv[0]:
                 sys.exit(0)
         elif "--enforce-default-entry" in sys.argv[POINT]:
             if not is_root():
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to be run this program as root to enable or disable boot entry enforcment." + systemd_boot_manager.CLEAR)
+                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to enable or disable boot entry enforcment." + systemd_boot_manager.CLEAR)
                 sys.exit(2)
             setting = sys.argv[POINT][24:].lower()
             if setting == "enable":
@@ -332,6 +385,18 @@ elif "systemd-boot-manager" in sys.argv[0]:
                 systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR}No option given. Option must be one of either `enable' or `disable'.{systemd_boot_manager.CLEAR}")
             else:
                 systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR}Invalid option given. Option must be one of either `enable' or `disable'.{systemd_boot_manager.CLEAR}")
+        elif sys.argv[POINT] in ("-t", "--timeout"):
+            if not is_root():
+                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to change settings." + systemd_boot_manager.CLEAR)
+                sys.exit(2)
+            if ((len(sys.argv) - 1) > (POINT + 1)):
+                systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR}No option given. Option must be a positive integer.{systemd_boot_manager.CLEAR}")
+            set_timeout(timeout=sys.argv[POINT + 1], verbose=VERBOSE)
+        elif sys.argv[POINT] == "--apply-loader-config":
+            if not is_root():
+                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to change settings." + systemd_boot_manager.CLEAR)
+                sys.exit(2)
+            apply_loader(verbose=VERBOSE)
         else:
             systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Flag: " + sys.argv[1] + " Not understood." + systemd_boot_manager.CLEAR)
             print(HELP)

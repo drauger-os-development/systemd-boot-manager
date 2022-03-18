@@ -176,3 +176,41 @@ def get_os_prober():
     for each in enumerate(output):
         output[each[0]] = output[each[0]].split(":")
     return output
+
+
+def check_loader(verbose=False):
+    """Check to see if loader file exists. If not, make it"""
+    if not isinstance(verbose, bool):
+        verbose = False
+    BOOT_DIR = "/boot/"
+    EFI_DIR = BOOT_DIR + "efi"
+    SD_LOADER_DIR = EFI_DIR + "/loader"
+    if not os.path.exists(SD_LOADER_DIR + "/loader.conf"):
+        if verbose:
+            print("loader.conf not present. Generating...")
+        try:
+            with open(f"{CONFIG_DIR}/loader.conf", "r") as file:
+                contents = file.read()
+        except FileNotFoundError:
+            eprint(ERROR, end="")
+            eprint(f"loader.conf config file not found in {CONFIG_DIR}")
+            eprint(ERROR, end="")
+            eprint("please reinstall systemd-boot-manager and try again", end="")
+            eprint(CLEAR)
+            failure(2)
+        if verbose:
+            print("Read config file")
+        contents = contents.replace("{distro}", DISTRO)
+        contents = contents.split("\n")
+        for each in range(len(contents) - 1, -1, -1):
+            if len(contents[each]) < 1:
+                continue
+            if contents[each][0] == "#":
+                del contents[each]
+        contents = "\n".join(contents)
+        if verbose:
+            print("Parsed config file")
+        with open(SD_LOADER_DIR + "/loader.conf", "w") as file:
+            file.write(contents)
+        if verbose:
+            print("New loader file created")

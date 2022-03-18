@@ -1,2 +1,3 @@
 /etc/systemd-boot-manager/default_entry.conf
 /etc/systemd-boot-manager/enabled.conf
+/etc/systemd-boot-manager/loader.conf

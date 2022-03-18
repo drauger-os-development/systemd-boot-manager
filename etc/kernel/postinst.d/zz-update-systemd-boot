@@ -411,28 +411,8 @@ with open("_Recovery".join(CONF_FILE), "w+") as output:
             output.write(CONF_FILE_CONTENTS[each[0]])
         output.write("\n")
 
-# Check to see if loader file exists. If not, make it:
-if not os.path.exists(SD_LOADER_DIR + "/loader.conf"):
-    try:
-        with open("/etc/systemd-boot-manager/loader.conf", "r") as file:
-            contents = file.read()
-    except FileNotFoundError:
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR, end="")
-        systemd_boot_manager.eprint("loader.conf config file not found in /etc/systemd-boot-manager")
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR, end="")
-        systemd_boot_manager.eprint("please reinstall systemd-boot-manager and try again", end="")
-        systemd_boot_manager.eprint(systemd_boot_manager.CLEAR)
-        failure(2)
-    contents = contents.replace("{distro}", systemd_boot_manager.DISTRO)
-    contents = contents.split("\n")
-    for each in range(len(contents) - 1, -1, -1):
-        if len(contents[each]) < 1:
-            continue
-        if contents[each][0] == "#":
-            del contents[each]
-    contents = "\n".join(contents)
-    with open(SD_LOADER_DIR + "/loader.conf", "w") as file:
-        file.write(contents)
+# check loader file
+systemd_boot_manager.check_loader()
 
 
 # Legacy Kernel Support
