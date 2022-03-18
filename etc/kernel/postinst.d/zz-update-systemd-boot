@@ -223,7 +223,8 @@ def __mount__(device, path_dir):
     try:
         subprocess.check_call(["mount", device, path_dir])
     except CalledProcessError:
-        pass
+        __umount__(path_dir)
+        subprocess.check_call(["mount", device, path_dir])
 
 
 def __umount__(path_dir):
