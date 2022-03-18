@@ -33,7 +33,7 @@ import systemd_boot_manager
 
 
 UUID_FILE = systemd_boot_manager.CONFIG_DIR + "/UUID.conf"
-VERSION = "0.2.7-alpha2"
+VERSION = "0.2.8-alpha2"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config

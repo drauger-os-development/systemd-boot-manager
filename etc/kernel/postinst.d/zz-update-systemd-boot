@@ -654,8 +654,14 @@ else:
                         count += 1
             else:
                 # systemd-boot is NOT being used
-                del dirs[dirs.index("BOOT")]
-                del dirs[dirs.index("Linux")]
+                try:
+                    del dirs[dirs.index("BOOT")]
+                except ValueError:
+                    pass
+                try:
+                    del dirs[dirs.index("Linux")]
+                except ValueError:
+                    pass
                 for each in dirs:
                     dirs2 = os.listdir(mountpoint + "/EFI/" + each)
                     for each1 in dirs2:
