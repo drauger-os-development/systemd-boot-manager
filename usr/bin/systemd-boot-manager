@@ -33,7 +33,7 @@ import systemd_boot_manager
 
 
 UUID_FILE = systemd_boot_manager.CONFIG_DIR + "/UUID.conf"
-VERSION = "0.2.5-alpha2"
+VERSION = "0.2.6-alpha2"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config
@@ -41,6 +41,7 @@ HELP = f"""systemd-boot-manager, Version: { VERSION }
     -e, --enable                                         Enable systemd-boot-manager.
         --enforce-default-entry=[enable|disable]         Make sure the default boot entry is set correctly
                                                          at every boot.
+        --editor=[enable|disable]                        Enable or disable boot menu entry editor.
     -d, --default [bootloader entry]                     Set as default bootloader entry.
         --disable                                        Disable systemd-boot-manager.
     -h, --help                                           Print this help dialog and exit.
@@ -108,6 +109,41 @@ def set_timeout(timeout=5, verbose=False):
     with open(systemd_boot_manager.CONFIG_DIR + "/loader.conf", "w") as file:
         file.write("\n".join(contents))
     print(f"{systemd_boot_manager.SUCCESS} TIMEOUT SUCCESSFULLY CONFIGURED {systemd_boot_manager.CLEAR}")
+    print(f"{systemd_boot_manager.NAME}\t Run: `sudo systemd-boot-manager --apply-loader-config' to apply config.")
+
+
+def set_editor(enable="enable", verbose=False):
+    """Enable/Disable bootloader menu editor"""
+    if enable.lower() not in ("enable", "disable" ):
+        systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR} {timeout}: not a valid option. Must be either 'enable' or 'disable'")
+        sys.exit(2)
+    if verbose:
+        print("Read config file...")
+    with open(systemd_boot_manager.CONFIG_DIR + "/loader.conf", "r") as file:
+        contents = file.read().split("\n")
+    if verbose:
+        print("Parse config file...")
+    for each in range(len(contents) - 1, -1, -1):
+        contents[each] = shlex.split(contents[each])
+    if verbose:
+        print("Modifying config...")
+    for each in range(len(contents) - 1, -1, -1):
+        if len(contents[each]) > 0:
+            if contents[each][0] == "editor":
+                if enable.lower() == "enable":
+                    contents[each][1] = "1"
+                else:
+                    contents[each][1] = "0"
+                break
+        else:
+            del contents[each]
+    if verbose:
+        print("Reconstructing and overwriting config file...")
+    for each in range(len(contents) - 1, -1, -1):
+        contents[each] = " ".join(contents[each])
+    with open(systemd_boot_manager.CONFIG_DIR + "/loader.conf", "w") as file:
+        file.write("\n".join(contents))
+    print(f"{systemd_boot_manager.SUCCESS} EDITOR SUCCESSFULLY {enable.upper()}D {systemd_boot_manager.CLEAR}")
     print(f"{systemd_boot_manager.NAME}\t Run: `sudo systemd-boot-manager --apply-loader-config' to apply config.")
 
 
@@ -397,6 +433,12 @@ elif "systemd-boot-manager" in sys.argv[0]:
                 systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to change settings." + systemd_boot_manager.CLEAR)
                 sys.exit(2)
             apply_loader(verbose=VERBOSE)
+        elif "--editor" in sys.argv[POINT]:
+            if not is_root():
+                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to change settings." + systemd_boot_manager.CLEAR)
+                sys.exit(2)
+            setting = sys.argv[POINT][9:].lower()
+            set_editor(enable=setting, verbose=VERBOSE)
         else:
             systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Flag: " + sys.argv[1] + " Not understood." + systemd_boot_manager.CLEAR)
             print(HELP)
