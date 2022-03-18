@@ -257,7 +257,7 @@ UUID = UUID.split("\n")[0]
 
 # Get size of /boot/efi partition
 PARTS = json.loads(subprocess.check_output(["lsblk", "--output",
-                                            "TYPE,SIZE,NAME,MOUNTPOINT",
+                                            "TYPE,SIZE,NAME,MOUNTPOINT,UUID",
                                             "--json",
                                             "--bytes"]).decode().replace("I",
                                                                          "i"))["blockdevices"]
@@ -267,12 +267,14 @@ for each in range(len(PARTS) - 1, -1, -1):
         del PARTS[each]
 
 ESP_SIZE = 0
+ESP_UUID = None
 for each in PARTS:
     for each1 in each["children"]:
         if "mountpoint" not in each1:
             continue
         if each1["mountpoint"] == EFI_DIR:
             ESP_SIZE = each1["size"]
+            ESP_UUID = each1["uuid"] # this will be helpful with handling dual-boot
             break
     if ESP_SIZE != 0:
         break
@@ -590,6 +592,10 @@ else:
                 start += 1
             # the UUID we need to mount
             fstab = fstab[start:end]
+            # This SHOULD prevent mounting the same partition in 2 places
+            if fstab == ESP_UUID:
+                # they match, so do not mount
+                continue
             blkid = subprocess.check_output(["blkid"]).decode().split("\n")
             for each in blkid:
                 if fstab in each:
@@ -686,11 +692,6 @@ else:
                 else:
                     # they are using GRUB. Chain-load it.
                     file.write(f"linux {grub}")
-
-
-
-
-
 
 clean_up()
 print(systemd_boot_manager.SUCCESS + "SYSTEMD-BOOT UPDATES COMPLETE!" + systemd_boot_manager.CLEAR)
