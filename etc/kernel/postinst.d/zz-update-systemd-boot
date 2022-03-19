@@ -238,7 +238,7 @@ def __umount__(path_dir):
             subprocess.check_call(["umount", "-l", path_dir],
                                   stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError as err:
-            print(err.returncode)
+            pass
 
 
 
