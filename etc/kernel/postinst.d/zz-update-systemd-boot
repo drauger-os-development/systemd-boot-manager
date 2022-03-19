@@ -438,8 +438,18 @@ if len(KERNELS) >= 1:
             try:
                 if VERBOSE:
                     print(BOOT_DIR + FILE + "-" + VERSION + " -> " + LOADER_DIR + FILE + "-" + VERSION)
-                shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
-                                LOADER_DIR + FILE + "-" + VERSION)
+                try:
+                    shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
+                                    LOADER_DIR + FILE + "-" + VERSION)
+                except FileNotFoundError:
+                    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "SOME FILE THAT IS NEEDED DOES NOT EXIST." + systemd_boot_manager.CLEAR)
+                    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "IT WILL LIKELY BE GENERATED LATER." + systemd_boot_manager.CLEAR)
+                    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "DIFFERING UPDATE." + systemd_boot_manager.CLEAR)
+                    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "IF YOU DO NOT GET A SUCCESSFUL UPDATE LATER" + systemd_boot_manager.CLEAR)
+                    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "CALL `sudo update-systemd-boot' TO MANUALLY" + systemd_boot_manager.CLEAR)
+                    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES" + systemd_boot_manager.CLEAR)
+                    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "SOMETHING ELSE MAY BE WRONG." + systemd_boot_manager.CLEAR)
+                    sys.exit()
             except FileExistsError:
                 os.remove(LOADER_DIR + FILE)
                 shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
