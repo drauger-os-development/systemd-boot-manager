@@ -447,22 +447,22 @@ if len(KERNELS) >= 1:
             try:
                 if VERBOSE:
                     print(BOOT_DIR + FILE + "-" + VERSION + " -> " + LOADER_DIR + FILE + "-" + VERSION)
-                try:
-                    shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
-                                    LOADER_DIR + FILE + "-" + VERSION)
-                except FileNotFoundError:
-                    warning("SOME FILE THAT IS NEEDED DOES NOT EXIST.")
-                    warning("IT WILL LIKELY BE GENERATED LATER.")
-                    warning("DIFFERING UPDATE.")
-                    warning("IF YOU DO NOT GET A SUCCESSFUL UPDATE LATER")
-                    warning("CALL `sudo update-systemd-boot' TO MANUALLY")
-                    warning("TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES")
-                    warning("SOMETHING ELSE MAY BE WRONG.")
-                    sys.exit()
-                except OSError:
-                    warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS.")
-                    warning("YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING")
-                    warning("ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING.")
+                shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
+                                LOADER_DIR + FILE + "-" + VERSION)
+            except FileNotFoundError:
+                warning("SOME FILE THAT IS NEEDED DOES NOT EXIST.")
+                warning("IT WILL LIKELY BE GENERATED LATER.")
+                warning("DIFFERING UPDATE.")
+                warning("IF YOU DO NOT GET A SUCCESSFUL UPDATE LATER")
+                warning("CALL `sudo update-systemd-boot' TO MANUALLY")
+                warning("TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES")
+                warning("SOMETHING ELSE MAY BE WRONG.")
+                sys.exit()
+            except OSError:
+                warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS.")
+                warning("YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING")
+                warning("ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING.")
+                sys.exit()
             except FileExistsError:
                 os.remove(LOADER_DIR + FILE)
                 shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
