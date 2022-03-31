@@ -450,6 +450,10 @@ if len(KERNELS) >= 1:
                     systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES" + systemd_boot_manager.CLEAR)
                     systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "SOMETHING ELSE MAY BE WRONG." + systemd_boot_manager.CLEAR)
                     sys.exit()
+                except OSError:
+                    warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS.")
+                    warning("YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING")
+                    warning("ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING.")
             except FileExistsError:
                 os.remove(LOADER_DIR + FILE)
                 shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
