@@ -590,8 +590,15 @@ else:
             __mount__(part, mountpoint)
         if each[2] == "Windows":
             # copy over Windows files as needed
-            shutil.copytree(mountpoint + "/EFI/Microsoft",
-                            EFI_DIR + "/EFI/Microsoft")
+            try:
+                shutil.copytree(mountpoint + "/EFI/Microsoft",
+                                EFI_DIR + "/EFI/Microsoft")
+            except FileExistsError:
+                # Windows is already set up, delete and reset up in case it's old files
+                shutil.rmtree(EFI_DIR + "/EFI/Microsoft")
+                shutil.copytree(mountpoint + "/EFI/Microsoft",
+                                EFI_DIR + "/EFI/Microsoft")
+
         else:
             try:
                 os.mkdir(EFI_DIR + "/EFI/" + each[2])
