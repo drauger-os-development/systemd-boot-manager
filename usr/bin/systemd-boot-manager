@@ -33,7 +33,7 @@ import systemd_boot_manager
 
 
 UUID_FILE = systemd_boot_manager.CONFIG_DIR + "/UUID.conf"
-VERSION = "0.3.4-alpha3"
+VERSION = "0.3.5-alpha3"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config
@@ -338,12 +338,17 @@ if "update-systemd-boot" in sys.argv[0]:
 Update systemd-boot and available kernel stubs
 
 -h, --help       Print this help dialog and exit
--V, --verbose    Print what is being done verbosely"""
+-v, --verbose    Print what is being done verbosely
+-V, --version    Print systemd-boot-manager version
+
+Pass nothing to trigger an update."""
     if ARGC >= 2:
         if sys.argv[1].lower() in ("-v", "--verbose"):
             trigger(True)
         elif sys.argv[1].lower() in ("-h", "--help"):
             print(HELP)
+        elif sys.argv[1].lower() in ("-V", "--version"):
+            print(VERSION)
         else:
             print(HELP)
             sys.exit(1)
