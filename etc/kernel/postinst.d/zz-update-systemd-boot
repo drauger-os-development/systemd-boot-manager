@@ -505,7 +505,7 @@ if REMAINING < 1048576:
 print(systemd_boot_manager.STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + systemd_boot_manager.CLEAR)
 os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
 try:
-    subprocess.check_call(["bootctl", "update"])
+    subprocess.check_call(["bootctl", "update", "--graceful"])
 except subprocess.CalledProcessError:
     error("BOOTCTL HAS HAD AN ERROR!")
     failure(2)
