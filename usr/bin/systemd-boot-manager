@@ -33,7 +33,7 @@ import systemd_boot_manager
 
 
 UUID_FILE = systemd_boot_manager.CONFIG_DIR + "/UUID.conf"
-VERSION = "0.3.6-alpha3"
+VERSION = "0.3.7-alpha3"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config
@@ -57,6 +57,10 @@ HELP = f"""systemd-boot-manager, Version: { VERSION }
 if sys.version_info[0] == 2:
     systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Please run with Python 3 as Python 2 is End-of-Life.")
     sys.exit(2)
+
+
+# with open("/etc/systemd-boot-manager/general.json", "r") as file:
+#     settings = json.load(file)
 
 
 def is_root():

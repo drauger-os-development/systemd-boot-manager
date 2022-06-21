@@ -169,6 +169,10 @@ CONF_FILE = [CLEAN_DIR + systemd_boot_manager.DISTRO, ".conf"]
 ROOT_FLAGS = "quiet splash"
 RECOVERY_FLAGS = "ro recovery nomodeset"
 
+# System Settings
+with open("/etc/systemd-boot-manager/general.json", "r") as file:
+    settings = json.load(file)
+
 # Default Loader Conf File
 # We have to edit this in several places, multiple different times.
 # Having the default file as a list like this will make that faster
@@ -505,7 +509,11 @@ if REMAINING < 1048576:
 print(systemd_boot_manager.STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + systemd_boot_manager.CLEAR)
 os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
 try:
-    subprocess.check_call(["bootctl", "update", "--graceful"])
+    cmd = ["bootctl", "update", "--graceful"]
+    if "no-var" in settings:
+        if settings["no-var"] is True: # while verbose, we want to ensure this is actually set to true. Any other time, evaluate to False
+            cmd.append("--no-variables")
+    subprocess.check_call(cmd)
 except subprocess.CalledProcessError:
     error("BOOTCTL HAS HAD AN ERROR!")
     failure(2)
