@@ -503,7 +503,7 @@ if len(KERNELS) >= 1:
 # ... With the Kernels ...
 # Now for systemd-boot
 REMAINING = ESP_SIZE - get_esp_part_used()
-if REMAINING < 1048576:
+if REMAINING < 200000:
     error("NOT ENOUGH SPACE ON DRIVE TO UPDATE SYSTEMD-BOOT")
     failure(1)
 print(systemd_boot_manager.STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + systemd_boot_manager.CLEAR)
@@ -579,169 +579,172 @@ else:
     # other operating systems are our last priority. Users can dual-boot using their EFI boot manager if they have to
     # Windows first since it has a standard EFI layout we can work with on any installation
     mountpoint = "/tmp/sdm-mountpoint"
-    for each in other_oss:
-        systemd = False
-        grub = None
-        if len(each) < 4:
-            continue
-        print(systemd_boot_manager.STATUS + f"CONFIGURING {each[1]}" + systemd_boot_manager.CLEAR)
-        if "@" in each[0]:
-            part = each[0].split("@")[0]
-        else:
-            part = each[0]
-        if not os.path.exists(mountpoint):
-            os.mkdir(mountpoint)
-        try:
-            __mount__(part, mountpoint)
-        except subprocess.CalledProcessError:
-            __umount__(mountpoint)
-            __mount__(part, mountpoint)
-        if each[2] == "Windows":
-            # copy over Windows files as needed
-            try:
-                shutil.copytree(mountpoint + "/EFI/Microsoft",
-                                EFI_DIR + "/EFI/Microsoft")
-            except FileExistsError:
-                # Windows is already set up, delete and reset up in case it's old files
-                shutil.rmtree(EFI_DIR + "/EFI/Microsoft")
-                shutil.copytree(mountpoint + "/EFI/Microsoft",
-                                EFI_DIR + "/EFI/Microsoft")
-
-        else:
-            try:
-                os.mkdir(EFI_DIR + "/EFI/" + each[2])
-            except FileExistsError:
-                pass
-            # read OS FSTAB
-            try:
-                with open(mountpoint + "/etc/fstab", "r") as file:
-                    fstab = file.read().split("\n")
-            except FileNotFoundError:
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Thought Windows was Linux. Stopping setting up dual-boot now to prevent issues." + systemd_boot_manager.CLEAR)
-                break
-            for each1 in fstab:
-                if len(each1) < 1:
-                    continue
-                if each1[0] == "#":
-                    continue
-                if "/boot/efi" in each1.lower():
-                    fstab = each1
-                    break
-            fstab = fstab.replace("\t", " ")
-            end = 0
-            for each1 in fstab:
-                if each1.isspace():
-                    break
-                end += 1
-            start = 1
-            for each1 in fstab:
-                if not each1.isalnum():
-                    break
-                start += 1
-            # the UUID we need to mount
-            fstab = fstab[start:end]
-            # This SHOULD prevent mounting the same partition in 2 places
-            if fstab == ESP_UUID:
-                # they match, so do not mount
+    if "dual-boot" not in settings:
+        settings["dual-boot"] = True
+    if settings["dual-boot"] is True:
+        for each in other_oss:
+            systemd = False
+            grub = None
+            if len(each) < 4:
                 continue
-            blkid = subprocess.check_output(["blkid"]).decode().split("\n")
-            for each1 in blkid:
-                if fstab in each1:
-                    fstab = each1.split(":")[0]
-                    break
-            # swap mounted partitions
-            __umount__(mountpoint)
-            __mount__(fstab, mountpoint)
-            # NOW we need to figure out what bootloader is in use
-            dirs = os.listdir(mountpoint + "/EFI")
-            if "systemd" in dirs:
-                # know they are using systemd-boot as well. We can just clone files and make life easy
-                systemd = True
-                dirs = os.listdir(mountpoint)
-                del dirs[dirs.index("EFI")]
-                del dirs[dirs.index("loader")]
-                for each in dirs:
-                    shutil.copytree(mountpoint + "/" + each,
-                                    EFI_DIR + "/" + each)
-                dirs = os.listdir(mountpoint + "/loader/entries")
-                for each1 in dirs:
-                    count = 0
-                    # copy over unique files
-                    # there is likely a faster way to do this, but this way should at least:
-                    # 1: be reliable
-                    # 2: prevent file collisions
-                    # 3: prevent duplicate systemd-boot entries
-                    while True:
-                        if count == 0:
-                            if not os.path.exists(CLEAN_DIR + each1):
-                                shutil.copy(mountpoint + "/loader/entries/" + each1,
-                                            CLEAN_DIR + each1)
-                                break
-                            with open(mountpoint + "/loader/entries/" + each1,
-                                      "r") as file:
-                                contents1 = file.read()
-                            with open(CLEAN_DIR + each1, "r") as file:
-                                contents2 = file.read()
-                            if contents1 == contents2:
-                                # The files match, skip
-                                break
-                        else:
-                            name = f"-{count}.".join(each1.split("."))
-                            if not os.path.exists(CLEAN_DIR + name):
-                                shutil.copy(mountpoint + "/loader/entries/" + each1,
-                                            CLEAN_DIR + name)
-                                break
-                            with open(mountpoint + "/loader/entries/" + each1,
-                                      "r") as file:
-                                contents1 = file.read()
-                            with open(CLEAN_DIR + name, "r") as file:
-                                contents2 = file.read()
-                            if contents1 == contents2:
-                                # The files match, skip
-                                break
-                        count += 1
+            print(systemd_boot_manager.STATUS + f"CONFIGURING {each[1]}" + systemd_boot_manager.CLEAR)
+            if "@" in each[0]:
+                part = each[0].split("@")[0]
             else:
-                # systemd-boot is NOT being used
+                part = each[0]
+            if not os.path.exists(mountpoint):
+                os.mkdir(mountpoint)
+            try:
+                __mount__(part, mountpoint)
+            except subprocess.CalledProcessError:
+                __umount__(mountpoint)
+                __mount__(part, mountpoint)
+            if each[2] == "Windows":
+                # copy over Windows files as needed
                 try:
-                    del dirs[dirs.index("BOOT")]
-                except ValueError:
-                    pass
-                try:
-                    del dirs[dirs.index("Linux")]
-                except ValueError:
-                    pass
-                for each1 in dirs:
-                    dirs2 = os.listdir(mountpoint + "/EFI/" + each1)
-                    for each2 in dirs2:
-                        if each2.lower() == "grubx64.efi":
-                            grub = "/EFI/" + each1 + "/" + each2
-                    if grub is not None:
-                        count = 0
-                        src = mountpoint + "/EFI/" + each1
-                        dest = EFI_DIR + "/EFI/" + each1
-                        try:
-                            shutil.copytree(src, dest)
-                        except FileExistsError:
-                            shutil.rmtree(dest)
-                            shutil.copytree(src, dest)
-                        break
-                # At this point we have detected either Windows, systemd-boot, or GRUB.
-                # That should cover most Linux OSs and Windows which are the biggest issues.
+                    shutil.copytree(mountpoint + "/EFI/Microsoft",
+                                    EFI_DIR + "/EFI/Microsoft")
+                except FileExistsError:
+                    # Windows is already set up, delete and reset up in case it's old files
+                    shutil.rmtree(EFI_DIR + "/EFI/Microsoft")
+                    shutil.copytree(mountpoint + "/EFI/Microsoft",
+                                    EFI_DIR + "/EFI/Microsoft")
 
-        # make loader file
-        if not systemd:
-            with open(CLEAN_DIR + each[2] + ".conf", "w") as file:
-                file.write(f"title {each[1]}\n")
-                if grub is None:
-                    # This SHOULD be Windows. An OS like MacOS or a Linux distro using
-                    # an unsupported bootloader will result an an empty entry.
-                    if each[2].lower() == "windows":
-                        file.write("efi /EFI/Microsoft/Boot/bootmgfw.efi")
+            else:
+                try:
+                    os.mkdir(EFI_DIR + "/EFI/" + each[2])
+                except FileExistsError:
+                    pass
+                # read OS FSTAB
+                try:
+                    with open(mountpoint + "/etc/fstab", "r") as file:
+                        fstab = file.read().split("\n")
+                except FileNotFoundError:
+                    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Thought Windows was Linux. Stopping setting up dual-boot now to prevent issues." + systemd_boot_manager.CLEAR)
+                    break
+                for each1 in fstab:
+                    if len(each1) < 1:
+                        continue
+                    if each1[0] == "#":
+                        continue
+                    if "/boot/efi" in each1.lower():
+                        fstab = each1
+                        break
+                fstab = fstab.replace("\t", " ")
+                end = 0
+                for each1 in fstab:
+                    if each1.isspace():
+                        break
+                    end += 1
+                start = 1
+                for each1 in fstab:
+                    if not each1.isalnum():
+                        break
+                    start += 1
+                # the UUID we need to mount
+                fstab = fstab[start:end]
+                # This SHOULD prevent mounting the same partition in 2 places
+                if fstab == ESP_UUID:
+                    # they match, so do not mount
+                    continue
+                blkid = subprocess.check_output(["blkid"]).decode().split("\n")
+                for each1 in blkid:
+                    if fstab in each1:
+                        fstab = each1.split(":")[0]
+                        break
+                # swap mounted partitions
+                __umount__(mountpoint)
+                __mount__(fstab, mountpoint)
+                # NOW we need to figure out what bootloader is in use
+                dirs = os.listdir(mountpoint + "/EFI")
+                if "systemd" in dirs:
+                    # know they are using systemd-boot as well. We can just clone files and make life easy
+                    systemd = True
+                    dirs = os.listdir(mountpoint)
+                    del dirs[dirs.index("EFI")]
+                    del dirs[dirs.index("loader")]
+                    for each in dirs:
+                        shutil.copytree(mountpoint + "/" + each,
+                                        EFI_DIR + "/" + each)
+                    dirs = os.listdir(mountpoint + "/loader/entries")
+                    for each1 in dirs:
+                        count = 0
+                        # copy over unique files
+                        # there is likely a faster way to do this, but this way should at least:
+                        # 1: be reliable
+                        # 2: prevent file collisions
+                        # 3: prevent duplicate systemd-boot entries
+                        while True:
+                            if count == 0:
+                                if not os.path.exists(CLEAN_DIR + each1):
+                                    shutil.copy(mountpoint + "/loader/entries/" + each1,
+                                                CLEAN_DIR + each1)
+                                    break
+                                with open(mountpoint + "/loader/entries/" + each1,
+                                        "r") as file:
+                                    contents1 = file.read()
+                                with open(CLEAN_DIR + each1, "r") as file:
+                                    contents2 = file.read()
+                                if contents1 == contents2:
+                                    # The files match, skip
+                                    break
+                            else:
+                                name = f"-{count}.".join(each1.split("."))
+                                if not os.path.exists(CLEAN_DIR + name):
+                                    shutil.copy(mountpoint + "/loader/entries/" + each1,
+                                                CLEAN_DIR + name)
+                                    break
+                                with open(mountpoint + "/loader/entries/" + each1,
+                                        "r") as file:
+                                    contents1 = file.read()
+                                with open(CLEAN_DIR + name, "r") as file:
+                                    contents2 = file.read()
+                                if contents1 == contents2:
+                                    # The files match, skip
+                                    break
+                            count += 1
                 else:
-                    # they are using GRUB. Chain-load it.
-                    file.write(f"linux {grub}")
-                # ending newline
-                file.write("\n")
+                    # systemd-boot is NOT being used
+                    try:
+                        del dirs[dirs.index("BOOT")]
+                    except ValueError:
+                        pass
+                    try:
+                        del dirs[dirs.index("Linux")]
+                    except ValueError:
+                        pass
+                    for each1 in dirs:
+                        dirs2 = os.listdir(mountpoint + "/EFI/" + each1)
+                        for each2 in dirs2:
+                            if each2.lower() == "grubx64.efi":
+                                grub = "/EFI/" + each1 + "/" + each2
+                        if grub is not None:
+                            count = 0
+                            src = mountpoint + "/EFI/" + each1
+                            dest = EFI_DIR + "/EFI/" + each1
+                            try:
+                                shutil.copytree(src, dest)
+                            except FileExistsError:
+                                shutil.rmtree(dest)
+                                shutil.copytree(src, dest)
+                            break
+                    # At this point we have detected either Windows, systemd-boot, or GRUB.
+                    # That should cover most Linux OSs and Windows which are the biggest issues.
+
+            # make loader file
+            if not systemd:
+                with open(CLEAN_DIR + each[2] + ".conf", "w") as file:
+                    file.write(f"title {each[1]}\n")
+                    if grub is None:
+                        # This SHOULD be Windows. An OS like MacOS or a Linux distro using
+                        # an unsupported bootloader will result an an empty entry.
+                        if each[2].lower() == "windows":
+                            file.write("efi /EFI/Microsoft/Boot/bootmgfw.efi")
+                    else:
+                        # they are using GRUB. Chain-load it.
+                        file.write(f"linux {grub}")
+                    # ending newline
+                    file.write("\n")
 
 clean_up()
 success("SYSTEMD-BOOT UPDATES COMPLETE!")

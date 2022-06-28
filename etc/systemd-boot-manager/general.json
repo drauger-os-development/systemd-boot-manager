@@ -1,5 +1,6 @@
 {
     "no-var": true,
     "standard_boot_args": [],
-    "recovery_args": []
+    "recovery_args": [],
+    "dual-boot": true
 }
