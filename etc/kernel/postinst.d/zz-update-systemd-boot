@@ -617,7 +617,7 @@ else:
                 with open(mountpoint + "/etc/fstab", "r") as file:
                     fstab = file.read().split("\n")
             except FileNotFoundError:
-                systemd_boot_manager.eprint(ERROR + "Thought Windows was Linux. Stopping setting up dual-boot now to prevent issues." + CLEAR)
+                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Thought Windows was Linux. Stopping setting up dual-boot now to prevent issues." + systemd_boot_manager.CLEAR)
                 break
             for each1 in fstab:
                 if len(each1) < 1:
