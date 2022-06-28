@@ -33,7 +33,7 @@ import systemd_boot_manager
 
 
 UUID_FILE = systemd_boot_manager.CONFIG_DIR + "/UUID.conf"
-VERSION = "0.4.0-alpha4"
+VERSION = "0.4.1-alpha4"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config
@@ -44,6 +44,8 @@ HELP = f"""systemd-boot-manager, Version: { VERSION }
         --editor=[enable|disable]                        Enable or disable boot menu entry editor.
     -d, --default [bootloader entry]                     Set as default bootloader entry.
         --disable                                        Disable systemd-boot-manager.
+        --dual-boot=(enable|disable)                     Enable or disable dual-boot support within systemd-boot.
+                                                         Pass nothing to check dual-boot status.
     -h, --help                                           Print this help dialog and exit.
     -l, --list                                           List all bootloader entries.
     -r, --repair                                         Repair systemd-boot-manager settings and systemd-boot.
@@ -448,6 +450,37 @@ elif "systemd-boot-manager" in sys.argv[0]:
                 sys.exit(2)
             setting = sys.argv[POINT][9:].lower()
             set_editor(enable=setting, verbose=VERBOSE)
+        elif "--dual-boot" in sys.argv[POINT]:
+            status = sys.argv[POINT][12:]
+            with open("/etc/systemd-boot-manager/general.json", "r") as file:
+                settings = json.load(file)
+            if status == "":
+                if settings["dual-boot"] is True:
+                    print(systemd_boot_manager.SUCCESS + "Dual-boot Support is Enabled." + systemd_boot_manager.CLEAR)
+                else:
+                    print(systemd_boot_manager.STATUS + "Dual-boot Support is Disabled." + systemd_boot_manager.CLEAR)
+            else:
+                status = status.lower()
+                if status == "enable":
+                    if settings["dual-boot"] is True:
+                        print(systemd_boot_manager.SUCCESS + "Dual-boot Support is already Enabled." + systemd_boot_manager.CLEAR)
+                    else:
+                        settings["dual-boot"] = True
+                        with open("/etc/systemd-boot-manager/general.json", "w") as file:
+                            json.dump(settings, file, indent=2)
+                        print(systemd_boot_manager.SUCCESS + "Dual-boot Support is Enabled." + systemd_boot_manager.CLEAR)
+                elif status == "disable":
+                    if settings["dual-boot"] is not True:
+                        print(systemd_boot_manager.STATUS + "Dual-boot Support is already Disabled." + systemd_boot_manager.CLEAR)
+                    else:
+                        settings["dual-boot"] = False
+                        with open("/etc/systemd-boot-manager/general.json", "w") as file:
+                            json.dump(settings, file, indent=2)
+                        print(systemd_boot_manager.STATUS + "Dual-boot Support is Disabled." + systemd_boot_manager.CLEAR)
+                else:
+                    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + f"'{status}' not understood. Please use either 'enable' or 'disable'.")
+                    sys.exit(1)
+
         else:
             systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Flag: " + sys.argv[1] + " Not understood." + systemd_boot_manager.CLEAR)
             print(HELP)
