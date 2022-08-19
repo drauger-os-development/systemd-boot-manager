@@ -171,7 +171,13 @@ RECOVERY_FLAGS = "ro recovery nomodeset"
 
 # System Settings
 with open("/etc/systemd-boot-manager/general.json", "r") as file:
-    settings = json.load(file)
+    SETTINGS = json.load(file)
+
+# make sure settings are valid
+if "standard_boot_args" not in SETTINGS:
+    SETTINGS["standard_boot_args"] = ROOT_FLAGS
+if "recovery_args" not in SETTINGS:
+    SETTINGS["recovery_args"] = RECOVERY_FLAGS
 
 # Default Loader Conf File
 # We have to edit this in several places, multiple different times.
@@ -420,13 +426,13 @@ if not os.path.exists(CLEAN_DIR):
 
 # Generate Config Files
 with open("".join(CONF_FILE), "w+") as output:
-    output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + ROOT_FLAGS)
+    output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + SETTINGS["standard_boot_args"])
 with open("_Recovery".join(CONF_FILE), "w+") as output:
     for each in enumerate(CONF_FILE_CONTENTS):
         if each[0] == 0:
             output.write(CONF_FILE_CONTENTS[each[0]] + " Recovery")
         elif each[0] == len(CONF_FILE_CONTENTS) - 1:
-            output.write(CONF_FILE_CONTENTS[each[0]] + UUID + " " + RECOVERY_FLAGS)
+            output.write(CONF_FILE_CONTENTS[each[0]] + UUID + " " + SETTINGS["recovery_args"])
         else:
             output.write(CONF_FILE_CONTENTS[each[0]])
         output.write("\n")
@@ -484,7 +490,7 @@ if len(KERNELS) >= 1:
                 elif line in (1, 2):
                     output.write(each + "-" + VERSION + "\n")
                 else:
-                    output.write(each + UUID + " " + ROOT_FLAGS)
+                    output.write(each + UUID + " " + SETTINGS["standard_boot_args"])
                 line += 1
         # Also make sure they have Legacy recovery. Cause it can be a life saver.
         with open(("-" + VERSION + "_Recovery").join(CONF_FILE),
@@ -496,7 +502,7 @@ if len(KERNELS) >= 1:
                 elif line in (1, 2):
                     output.write(each + "-" + VERSION + "\n")
                 else:
-                    output.write(each + UUID + " " + RECOVERY_FLAGS)
+                    output.write(each + UUID + " " + SETTINGS["recovery_args"])
                 line += 1
 
 # Finally, we are done! Woot!
@@ -510,8 +516,8 @@ print(systemd_boot_manager.STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + systemd_b
 os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
 try:
     cmd = ["bootctl", "update", "--graceful"]
-    if "no-var" in settings:
-        if settings["no-var"] is True: # while verbose, we want to ensure this is actually set to true. Any other time, evaluate to False
+    if "no-var" in SETTINGS:
+        if SETTINGS["no-var"] is True: # while verbose, we want to ensure this is actually set to true. Any other time, evaluate to False
             cmd.append("--no-variables")
     subprocess.check_call(cmd)
 except subprocess.CalledProcessError:
@@ -579,9 +585,9 @@ else:
     # other operating systems are our last priority. Users can dual-boot using their EFI boot manager if they have to
     # Windows first since it has a standard EFI layout we can work with on any installation
     mountpoint = "/tmp/sdm-mountpoint"
-    if "dual-boot" not in settings:
-        settings["dual-boot"] = True
-    if settings["dual-boot"] is True:
+    if "dual-boot" not in SETTINGS:
+        SETTINGS["dual-boot"] = True
+    if SETTINGS["dual-boot"] is True:
         for each in other_oss:
             systemd = False
             grub = None
