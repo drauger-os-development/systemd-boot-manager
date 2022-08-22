@@ -26,6 +26,7 @@ import os
 import sys
 import subprocess
 import distro
+import json
 
 
 GREEN = "\033[92m"
@@ -215,3 +216,29 @@ def check_loader(verbose=False):
             file.write(contents)
         if verbose:
             print("New loader file created")
+
+
+def get_key(device, key_type="uuid"):
+    """Get the key used to point to a specific device at boot.
+    `key_type` can be one of:
+
+    UUID
+    PARTUUID
+    LABEL
+    PATH
+    """
+    key_type = key_type.lower()
+    types = ("uuid", "partuuid", "path", "label")
+    if key_type not in types:
+        raise ValueError(f"'{ key_type }' not one of: { ', '.join(types) }")
+    if not os.path_exists(device):
+        raise FileNotFoundError(f"'{ device }: path not recognized'")
+    output = json.loads(subprocess.check_output(["lsblk", "--json",
+                                                 "--output",
+                                                 f"path,{ key_type }",
+                                                 device]).decode())
+    output = output["blockdevices"]
+    for each in output:
+        if each["path"] == device:
+            return each[key_type]
+
