@@ -180,7 +180,8 @@ except (FileNotFoundError, json.decoder.JSONDecodeError):
     "no-var": False,
     "standard_boot_args": "quiet splash",
     "recovery_args": "ro recovery nomodeset",
-    "dual-boot": True
+    "dual-boot": True,
+    "key": "partuuid"
 }
 
 # make sure settings are valid
@@ -188,14 +189,54 @@ if "standard_boot_args" not in SETTINGS:
     SETTINGS["standard_boot_args"] = ROOT_FLAGS
 if "recovery_args" not in SETTINGS:
     SETTINGS["recovery_args"] = RECOVERY_FLAGS
+if "key" not in SETTINGS:
+    SETTINGS["key"] = "partuuid"
 
 # Default Loader Conf File
 # We have to edit this in several places, multiple different times.
 # Having the default file as a list like this will make that faster
+if os.path.exists("../../systemd-boot-manager/root_device.conf"):
+    # this is the easiest solution for the user, but takes more processing for us
+    with open("../../systemd-boot-manager/root_device.conf", "r") as file:
+         ROOT_POINTER = file.read()
+    ROOT_POINTER = ROOT_POINTER.split("\n")[0]
+    ROOT_POINTER = systemd_boot_manager.get_key(ROOT_POINTER, SETTINGS["key"])
+    if SETTINGS["key"].lower() is not "path":
+        ROOT_POINTER = f"{ SETTINGS['key'].upper() }={ ROOT_POINTER }"
+elif os.path.exists("../../systemd-boot-manager/UUID.conf"):
+    # this takes less processing from us, but we have to figure out if this is a UUID or PARTUUID
+    with open("../../systemd-boot-manager/UUID.conf", "r") as file:
+        ROOT_POINTER = file.read()
+    ROOT_POINTER = ROOT_POINTER.split("\n")[0]
+    uuids = json.loads(subprocess.check_output(["lsblk", "--json",
+                                                "--output", "path,uuid,partuuid"]))
+    uuids = uuids["blockdevices"]
+    for each in uuids:
+        if ROOT_POINTER == each["uuid"]:
+            ROOT_POINTER = f"UUID={ ROOT_POINTER }"
+            break
+        elif ROOT_POINTER == each["partuuid"]:
+            ROOT_POINTER = f"PARTUUID={ ROOT_POINTER }"
+            break
+else:
+    # this entire block exists to improve stability and resliancy. In case one of the 2 files we looked for perviously don't exist, we still have other options.
+    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "Could not find settings files that point to root partition. Will attempt to infer..." + systemd_boot_manager.CLEAR)
+    devices = json.loads(subprocess.check_output(["lsblk", "--json", "--output"
+                                                  "mountpoint,partuuid"]))
+    devices = devices["blockdevices"]
+    root = ""
+    for each in devices:
+        if each["mountpoint"] == "/":
+            root = each["partuuid"]
+            break
+    if root == "":
+        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Could not infer root parition." + systemd_boot_manager.CLEAR)
+        sys.exit(2)
+    ROOT_POINTER = f"PARTUUID={ root }"
 CONF_FILE_CONTENTS = ["title  " + systemd_boot_manager.DISTRO,
                       "linux   /" + systemd_boot_manager.DISTRO + "/vmlinuz",
                       "initrd  /" + systemd_boot_manager.DISTRO + "/initrd.img",
-                      "options root=PARTUUID="]
+                      "options root=" + ROOT_POINTER]
 if len(sys.argv) > 1:
     if sys.argv[1] == "-v":
         VERBOSE = True

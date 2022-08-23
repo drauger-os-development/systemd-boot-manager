@@ -32,7 +32,7 @@ import systemd_boot_manager
 
 
 
-UUID_FILE = systemd_boot_manager.CONFIG_DIR + "/UUID.conf"
+UUID_FILE = systemd_boot_manager.CONFIG_DIR + "/root_device.conf"
 VERSION = "0.4.3-alpha4"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
@@ -186,19 +186,43 @@ def _get_devices():
     return devices
 
 
-def get_UUID(verbose):
-    """Get UUID for the root partition"""
-    # Get root partition
-    uuid = ""
+def get_root_partition(verbose):
+    """Determine the root partition"""
     if verbose:
         print("getting devices . . .")
     devices = _get_devices()
-    if verbose:
-        print("Parsing for UUIDs . . .")
     for each in devices:
         if each["mountpoint"] == "/":
-            uuid = each["partuuid"]
-            break
+            if verbose:
+                print(f"Found root partition to be: { each['path'] }")
+            return each["path"]
+
+
+
+def get_UUID(verbose):
+    """Get UUID for the root partition"""
+    # Get root partition
+    settings_file = "../../etc/systemd-boot-manager/general.json"
+    if verbose:
+        print("Getting root partition...")
+    uuid = get_root_partition(verbose)
+    # get key setting
+    if os.path.exists(settings_file):
+        with open(settings_file, "r") as file:
+            settings = json.load(file)
+        try:
+            key = settings["key"].upper()
+        except KeyError:
+            key = "PARTUUID"
+    else:
+        key = "PARTUUID"
+    if verbose:
+        print(f"Parsing for { key }s . . .")
+    try:
+        uuid = systemd_boot_manager.get_key(uuid)
+    except ValueError:
+        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + f"Not a valid key type: { key }" + systemd_boot_manager.CLEAR)
+    # we get our key
     return uuid
 
 
@@ -274,7 +298,7 @@ def check(verbose):
 def repair(verbose):
     """Repair systemd-boot-manager and systemd-boot settings"""
     if not is_root():
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to be run this program as root to repair your settings." + systemd_boot_manager.CLEAR)
+        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to repair your settings." + systemd_boot_manager.CLEAR)
         sys.exit(2)
     print(systemd_boot_manager.BLUE + "INITIATING CONFIGURATION REPAIR" + systemd_boot_manager.CLEAR)
     print("-" * 20, "\n")
