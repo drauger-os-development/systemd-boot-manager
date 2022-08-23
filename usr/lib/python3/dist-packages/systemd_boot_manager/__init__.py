@@ -218,7 +218,7 @@ def check_loader(verbose=False):
             print("New loader file created")
 
 
-def get_key(device, key_type="uuid"):
+def get_key(device, key_type="uuid", verbose=False):
     """Get the key used to point to a specific device at boot.
     `key_type` can be one of:
 
@@ -231,8 +231,10 @@ def get_key(device, key_type="uuid"):
     types = ("uuid", "partuuid", "path", "label")
     if key_type not in types:
         raise ValueError(f"'{ key_type }' not one of: { ', '.join(types) }")
-    if not os.path_exists(device):
+    if not os.path.exists(device):
         raise FileNotFoundError(f"'{ device }: path not recognized'")
+    if key_type == "path":
+        return device
     output = json.loads(subprocess.check_output(["lsblk", "--json",
                                                  "--output",
                                                  f"path,{ key_type }",
