@@ -231,7 +231,7 @@ def get_key(device, key_type="uuid"):
     types = ("uuid", "partuuid", "path", "label")
     if key_type not in types:
         raise ValueError(f"'{ key_type }' not one of: { ', '.join(types) }")
-    if not os.path_exists(device):
+    if not os.path.exists(device):
         raise FileNotFoundError(f"'{ device }: path not recognized'")
     output = json.loads(subprocess.check_output(["lsblk", "--json",
                                                  "--output",

@@ -39,13 +39,14 @@ HELP = f"""systemd-boot-manager, Version: { VERSION }
         --apply-loader-config                            Apply loader.conf config
     -c, --check                                          Check systemd-boot-manager settings.
     -e, --enable                                         Enable systemd-boot-manager.
-        --enforce-default-entry=[enable|disable]         Make sure the default boot entry is set correctly
-                                                         at every boot.
-        --editor=[enable|disable]                        Enable or disable boot menu entry editor.
+        --enforce-default-entry=(enable|disable)         Make sure the default boot entry is set correctly
+                                                         at every boot. Pass nothing to check status.
+        --editor=(enable|disable)                        Enable or disable boot menu entry editor. Pass
+                                                         nothing to check status.
     -d, --default [bootloader entry]                     Set as default bootloader entry.
         --disable                                        Disable systemd-boot-manager.
         --dual-boot=(enable|disable)                     Enable or disable dual-boot support within systemd-boot.
-                                                         Pass nothing to check dual-boot status.
+                                                         Pass nothing to check status.
     -h, --help                                           Print this help dialog and exit.
     -l, --list                                           List all bootloader entries.
     -r, --repair                                         Repair systemd-boot-manager settings and systemd-boot.
@@ -100,13 +101,36 @@ def disable(verbose):
         sys.exit(0)
 
 
+def enforce_default_entry_enabled(output="text"):
+    """Check if enforcing the default boot entry is enabled
+
+    if output == "bool", enforce_default_entry_enabled() will return true if enabled, false if disabled.
+    Otherwise, enforce_default_entry_enabled() returns "enabled" or "disabled"
+    """
+    try:
+        status = subprocess.check_output(["systemctl", "status",
+                                          "systemd-boot-manager"]).decode()
+    except subprocess.CalledProcessError as e:
+        status = e.stdout.decode()
+    status = status.split("\n")[1].split("; ")[1]
+    if output == "bool":
+        if status.lower() == "enabled":
+            return True
+        elif status.lower() == "disabled":
+            return False
+    return status
+
+
 def enforce_default_entry(arg, verbose):
-    """"""
+    """enable or disable enforcing the default boot entry"""
     if not sdbm.is_root():
         sdbm.eprint(sdbm.ERROR + "You need to run this program as root to enable or disable boot entry enforcment." + sdbm.CLEAR)
         sys.exit(2)
     setting = arg[24:].lower()
     if setting == "enable":
+        if enforce_default_entry_enabled(output="bool"):
+            print(f"{ sdbm.STATUS }Default Entry Enforcement is already enabled!{ sdbm.CLEAR }")
+            sys.exit(0)
         try:
             subprocess.check_call(["systemctl", "enable", "systemd-boot-manager"])
         except subprocess.CalledProcessError:
@@ -114,6 +138,9 @@ def enforce_default_entry(arg, verbose):
             sys.exit(2)
         print(sdbm.SUCCESS + "Default Entry Enforcement has been ENABLED" + sdbm.CLEAR)
     elif setting == "disable":
+        if not enforce_default_entry_enabled(output="bool"):
+            print(f"{ sdbm.STATUS }Default Entry Enforcement is already disabled!{ sdbm.CLEAR }")
+            sys.exit(0)
         try:
             subprocess.check_call(["systemctl", "disable", "systemd-boot-manager"])
         except subprocess.CalledProcessError:
@@ -121,13 +148,7 @@ def enforce_default_entry(arg, verbose):
             sys.exit(2)
         print(sdbm.SUCCESS + "Default Entry Enforcement has been DISABLED" + sdbm.CLEAR)
     elif setting == "":
-        try:
-            status = subprocess.check_output(["systemctl", "status",
-                                              "systemd-boot-manager"]).decode()
-        except subprocess.CalledProcessError:
-            sdbm.eprint(sdbm.ERROR + "systemd has encountered an error." + sdbm.CLEAR)
-            sys.exit(2)
-        status = status.split("\n")[1].split("; ")[1]
+        status = enforce_default_entry_enabled()
         print(sdbm.STATUS + f"Default Entry Enforcement is: { status.upper() }" + sdbm.CLEAR)
     else:
         sdbm.eprint(f"{sdbm.ERROR}Invalid option given. Option must be one of either `enable' or `disable'.{sdbm.CLEAR}")
@@ -191,8 +212,7 @@ def get_settings(verbose):
         settings = json.load(file)
     conf["KEY"] = settings["key"].upper()
     conf[settings["key"].upper()] = sdbm.get_key(sdbm.get_root_partition(verbose),
-                                                 key_type=conf["KEY"],
-                                                 verbose=verbose)
+                                                 key_type=conf["KEY"])
     return conf
 
 
@@ -206,11 +226,77 @@ def show_settings(verbose):
         print(sdbm.RED + "\nERROR: SETTINGS LIKELY CORRUPTED!" + sdbm.CLEAR)
         print(sdbm.RED + "\nERROR: REPAIR THIS ISSUE USING THE -r FLAG!\n" + sdbm.CLEAR)
         sys.exit(2)
-    print(sdbm.BLUE + "DEFAULT BOOT ENTRY:\t" + sdbm.CLEAR + settings["DEFAULT_ENTRY"])
-    devices = _get_devices()
+    print(sdbm.BLUE + "DEFAULT BOOT ENTRY:\t\t" + sdbm.CLEAR + settings["DEFAULT_ENTRY"])
+    devices = sdbm._get_devices()
     for each in devices:
-        if each["partuuid"] == settings["UUID"]:
-            print(sdbm.BLUE + "ROOT PARTITION:\t\t" + sdbm.CLEAR + each["path"])
+        if each["partuuid"] == settings[settings["KEY"]]:
+            print(sdbm.BLUE + "ROOT PARTITION:\t\t\t" + sdbm.CLEAR + each["path"])
+            break
+    print(f"{ sdbm.BLUE }DEFAULT ENTRY ENFORCEMENT:\t{ sdbm.CLEAR }{ enforce_default_entry_enabled() }")
+    print(f"{ sdbm.BLUE }BOOT MENU EDITOR:\t\t{ sdbm.CLEAR }{ get_editor() }")
+
+
+def get_editor(output="text", verbose=False):
+    """Get bootloader menu editor setting"""
+    with open(sdbm.CONFIG_DIR + "/loader.conf", "r") as file:
+        contents = file.read().split("\n")
+    for each in range(len(contents) - 1, -1, -1):
+        if "editor" in contents[each]:
+            contents = contents[each]
+            break
+    contents = shlex.split(contents)
+    if contents[1] == "1":
+        if output == "bool":
+            return True
+        return "enabled"
+    else:
+        if output == "bool":
+            return False
+        return "disabled"
+
+
+def set_editor(enable="enable", verbose=False):
+    """Enable/Disable bootloader menu editor"""
+    if enable.lower() not in ("enable", "disable", ""):
+        sdbm.eprint(f"{sdbm.ERROR} {enable}: not a valid option. Must be either 'enable' or 'disable'")
+        sys.exit(2)
+    if verbose:
+        print("Read config file...")
+    with open(sdbm.CONFIG_DIR + "/loader.conf", "r") as file:
+        contents = file.read().split("\n")
+    if verbose:
+        print("Parse config file...")
+    for each in range(len(contents) - 1, -1, -1):
+        contents[each] = shlex.split(contents[each])
+    if verbose:
+        print("Modifying config...")
+    for each in range(len(contents) - 1, -1, -1):
+        if len(contents[each]) > 0:
+            if contents[each][0] == "editor":
+                if enable.lower() == "enable":
+                    if contents[each][1] == "1":
+                        print(f"{ sdbm.STATUS } EDITOR ALREADY ENABLED { sdbm.CLEAR }")
+                        sys.exit(0)
+                    contents[each][1] = "1"
+                elif enable.lower() == "disable":
+                    if contents[each][1] == "0":
+                        print(f"{ sdbm.STATUS } EDITOR ALREADY DISABLED { sdbm.CLEAR }")
+                        sys.exit(0)
+                    contents[each][1] = "0"
+                elif enable.lower() == "":
+                    print(f"{ sdbm.STATUS } EDITOR { get_editor().upper() } { sdbm.CLEAR }")
+                    sys.exit(0)
+                break
+        else:
+            del contents[each]
+    if verbose:
+        print("Reconstructing and overwriting config file...")
+    for each in range(len(contents) - 1, -1, -1):
+        contents[each] = " ".join(contents[each])
+    with open(sdbm.CONFIG_DIR + "/loader.conf", "w") as file:
+        file.write("\n".join(contents))
+    print(f"{sdbm.SUCCESS} EDITOR SUCCESSFULLY {enable.upper()}D {sdbm.CLEAR}")
+    print(f"{sdbm.NAME}\t Run: `sudo systemd-boot-manager --apply-loader-config' to apply config.")
 
 
 # Handle flags on command line
@@ -278,19 +364,19 @@ else:
         elif "--enforce-default-entry" in sys.argv[POINT]:
             enforce_default_entry(sys.argv[POINT], VERBOSE)
         elif sys.argv[POINT] in ("-t", "--timeout"):
-            if not is_root():
+            if not sdbm.is_root():
                 sdbm.eprint(sdbm.ERROR + "You need to run this program as root to change settings." + sdbm.CLEAR)
                 sys.exit(2)
             if ((len(sys.argv) - 1) > (POINT + 1)):
                 sdbm.eprint(f"{sdbm.ERROR}No option given. Option must be a positive integer.{sdbm.CLEAR}")
             set_timeout(timeout=sys.argv[POINT + 1], verbose=VERBOSE)
         elif sys.argv[POINT] == "--apply-loader-config":
-            if not is_root():
+            if not sdbm.is_root():
                 sdbm.eprint(sdbm.ERROR + "You need to run this program as root to change settings." + sdbm.CLEAR)
                 sys.exit(2)
             apply_loader(verbose=VERBOSE)
         elif "--editor" in sys.argv[POINT]:
-            if not is_root():
+            if not sdbm.is_root():
                 sdbm.eprint(sdbm.ERROR + "You need to run this program as root to change settings." + sdbm.CLEAR)
                 sys.exit(2)
             setting = sys.argv[POINT][9:].lower()
