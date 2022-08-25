@@ -21,19 +21,19 @@
 #  MA 02110-1301, USA.
 #
 #
-"""Trigger zz-update-systemd-boot"""
+"""Explain what this program does here!!!"""
 from __future__ import print_function
 import sys
 import subprocess
 import os
 import json
 import shlex
-import systemd_boot_manager
+import systemd_boot_manager as sdbm
 
 
-
-UUID_FILE = systemd_boot_manager.CONFIG_DIR + "/root_device.conf"
-VERSION = "0.4.3-alpha4"
+# Set up
+UUID_FILE = sdbm.CONFIG_DIR + "/root_device.conf"
+VERSION = "0.5.3-alpha5"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config
@@ -57,25 +57,122 @@ HELP = f"""systemd-boot-manager, Version: { VERSION }
 
 
 if sys.version_info[0] == 2:
-    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Please run with Python 3 as Python 2 is End-of-Life.")
+    sdbm.eprint(sdbm.ERROR + "Please run with Python 3 as Python 2 is End-of-Life." + sdbm.CLEAR)
     sys.exit(2)
 
 
-# with open("/etc/systemd-boot-manager/general.json", "r") as file:
-#     settings = json.load(file)
+def list_boot_entries(verbose):
+    """Print a list of boot entries for the user"""
+    entries = sdbm.get_boot_entries(verbose=verbose)
+    print(sdbm.BLUE + "BOOT LOADER ENTRIES" + sdbm.CLEAR)
+    print("-" * 20, "\n")
+    for each in entries:
+        print(f"\t-  { each }")
+        print(f"\t\tID: { entries[each]['id'] }")
+        print(f"\t\tDefault: { str(entries[each]['default']) }", '\n')
 
 
-def is_root():
-    """Check if we have root"""
-    return (os.geteuid() == 0)
+def enable(verbose):
+    """Entry point to enable systemd-boot-manager"""
+    if not sdbm.is_root():
+        sdbm.eprint(sdbm.ERROR + "You need to be run this program as root to enable systemd-boot-manager." + sdbm.CLEAR)
+        sys.exit(2)
+    if not sdbm.is_enabled():
+        set_enabled()
+        print(sdbm.SUCCESS + "systemd-boot-manager enabled!" + sdbm.CLEAR)
+        sys.exit(0)
+    else:
+        print(sdbm.STATUS + "systemd-boot-manager already enabled." + sdbm.CLEAR)
+        sys.exit(0)
 
-def trigger(verbose):
+
+def disable(verbose):
+    """Entry point to disable systemd-boot-manager"""
+    if not sdbm.is_root():
+        sdbm.eprint(sdbm.ERROR + "You need to be run this program as root to disable systemd-boot-manager." + sdbm.CLEAR)
+        sys.exit(2)
+    if not sdbm.is_enabled():
+        sdbm.eprint(sdbm.STATUS + "systemd-boot-manager already disabled." + sdbm.CLEAR)
+        sys.exit(0)
+    else:
+        set_disabled()
+        print(sdbm.SUCCESS + "systemd-boot-manager disabled!" + sdbm.CLEAR)
+        sys.exit(0)
+
+
+def enforce_default_entry(arg, verbose):
+    """"""
+    if not sdbm.is_root():
+        sdbm.eprint(sdbm.ERROR + "You need to run this program as root to enable or disable boot entry enforcment." + sdbm.CLEAR)
+        sys.exit(2)
+    setting = arg[24:].lower()
+    if setting == "enable":
+        try:
+            subprocess.check_call(["systemctl", "enable", "systemd-boot-manager"])
+        except subprocess.CalledProcessError:
+            sdbm.eprint(sdbm.ERROR + "systemd has encountered an error." + sdbm.CLEAR)
+            sys.exit(2)
+        print(sdbm.SUCCESS + "Default Entry Enforcement has been ENABLED" + sdbm.CLEAR)
+    elif setting == "disable":
+        try:
+            subprocess.check_call(["systemctl", "disable", "systemd-boot-manager"])
+        except subprocess.CalledProcessError:
+            sdbm.eprint(sdbm.ERROR + "systemd has encountered an error." + sdbm.CLEAR)
+            sys.exit(2)
+        print(sdbm.SUCCESS + "Default Entry Enforcement has been DISABLED" + sdbm.CLEAR)
+    elif setting == "":
+        try:
+            status = subprocess.check_output(["systemctl", "status",
+                                              "systemd-boot-manager"]).decode()
+        except subprocess.CalledProcessError:
+            sdbm.eprint(sdbm.ERROR + "systemd has encountered an error." + sdbm.CLEAR)
+            sys.exit(2)
+        status = status.split("\n")[1].split("; ")[1]
+        print(sdbm.STATUS + f"Default Entry Enforcement is: { status.upper() }" + sdbm.CLEAR)
+    else:
+        sdbm.eprint(f"{sdbm.ERROR}Invalid option given. Option must be one of either `enable' or `disable'.{sdbm.CLEAR}")
+
+
+def dual_boot(arg, verbose):
+    """Report or update dual-boot setting"""
+    with open("/etc/systemd-boot-manager/general.json", "r") as file:
+        settings = json.load(file)
+    if arg == "":
+        if settings["dual-boot"] is True:
+            print(sdbm.SUCCESS + "Dual-boot Support is Enabled." + sdbm.CLEAR)
+        else:
+            print(sdbm.STATUS + "Dual-boot Support is Disabled." + sdbm.CLEAR)
+    else:
+        arg = arg.lower()
+        if arg == "enable":
+            if settings["dual-boot"] is True:
+                print(sdbm.SUCCESS + "Dual-boot Support is already Enabled." + sdbm.CLEAR)
+            else:
+                settings["dual-boot"] = True
+                with open("/etc/systemd-boot-manager/general.json", "w") as file:
+                    json.dump(settings, file, indent=2)
+                print(sdbm.SUCCESS + "Dual-boot Support is Enabled." + sdbm.CLEAR)
+        elif arg == "disable":
+            # we do this because the ONLY time we want dual-boot to be enabled is when dual-boot is True. Any other time, we default to False.
+            if settings["dual-boot"] is not True:
+                print(sdbm.STATUS + "Dual-boot Support is already Disabled." + sdbm.CLEAR)
+            else:
+                settings["dual-boot"] = False
+                with open("/etc/systemd-boot-manager/general.json", "w") as file:
+                    json.dump(settings, file, indent=2)
+                print(sdbm.STATUS + "Dual-boot Support is Disabled." + sdbm.CLEAR)
+        else:
+            sdbm.eprint(sdbm.ERROR + f"'{status}' not understood. Please use either 'enable' or 'disable'.")
+            sys.exit(1)
+
+
+def update(verbose):
     """Trigger systemd-boot update"""
     command = ["/etc/kernel/postinst.d/zz-update-systemd-boot"]
     if verbose:
         command.append("-v")
-    if not is_root():
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to be run this program as root to update systemd-boot." + systemd_boot_manager.CLEAR)
+    if not sdbm.is_root():
+        sdbm.eprint(sdbm.ERROR + "You need to be run this program as root to update systemd-boot." + sdbm.CLEAR)
         sys.exit(2)
     try:
         subprocess.check_call(command)
@@ -83,281 +180,40 @@ def trigger(verbose):
         sys.exit(err.returncode)
 
 
-def set_timeout(timeout=5, verbose=False):
-    """Set bootloader menu timeout"""
-    if not timeout.isnumeric():
-        systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR} {timeout}: not a positive integer.")
-        sys.exit(2)
-    if int(timeout) < 0:
-        systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR} {timeout}: not a positive integer.")
-        sys.exit(2)
-    if verbose:
-        print("Read config file...")
-    with open(systemd_boot_manager.CONFIG_DIR + "/loader.conf", "r") as file:
-        contents = file.read().split("\n")
-    if verbose:
-        print("Parse config file...")
-    for each in range(len(contents) - 1, -1, -1):
-        contents[each] = shlex.split(contents[each])
-    if verbose:
-        print("Modifying config...")
-    for each in range(len(contents) - 1, -1, -1):
-        if len(contents[each]) > 0:
-            if contents[each][0] == "timeout":
-                contents[each][1] = timeout
-                break
-        else:
-            del contents[each]
-    if verbose:
-        print("Reconstructing and overwriting config file...")
-    for each in range(len(contents) - 1, -1, -1):
-        contents[each] = " ".join(contents[each])
-    with open(systemd_boot_manager.CONFIG_DIR + "/loader.conf", "w") as file:
-        file.write("\n".join(contents))
-    print(f"{systemd_boot_manager.SUCCESS} TIMEOUT SUCCESSFULLY CONFIGURED {systemd_boot_manager.CLEAR}")
-    print(f"{systemd_boot_manager.NAME}\t Run: `sudo systemd-boot-manager --apply-loader-config' to apply config.")
-
-
-def set_editor(enable="enable", verbose=False):
-    """Enable/Disable bootloader menu editor"""
-    if enable.lower() not in ("enable", "disable" ):
-        systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR} {timeout}: not a valid option. Must be either 'enable' or 'disable'")
-        sys.exit(2)
-    if verbose:
-        print("Read config file...")
-    with open(systemd_boot_manager.CONFIG_DIR + "/loader.conf", "r") as file:
-        contents = file.read().split("\n")
-    if verbose:
-        print("Parse config file...")
-    for each in range(len(contents) - 1, -1, -1):
-        contents[each] = shlex.split(contents[each])
-    if verbose:
-        print("Modifying config...")
-    for each in range(len(contents) - 1, -1, -1):
-        if len(contents[each]) > 0:
-            if contents[each][0] == "editor":
-                if enable.lower() == "enable":
-                    contents[each][1] = "1"
-                else:
-                    contents[each][1] = "0"
-                break
-        else:
-            del contents[each]
-    if verbose:
-        print("Reconstructing and overwriting config file...")
-    for each in range(len(contents) - 1, -1, -1):
-        contents[each] = " ".join(contents[each])
-    with open(systemd_boot_manager.CONFIG_DIR + "/loader.conf", "w") as file:
-        file.write("\n".join(contents))
-    print(f"{systemd_boot_manager.SUCCESS} EDITOR SUCCESSFULLY {enable.upper()}D {systemd_boot_manager.CLEAR}")
-    print(f"{systemd_boot_manager.NAME}\t Run: `sudo systemd-boot-manager --apply-loader-config' to apply config.")
-
-
-def apply_loader(verbose=False):
-    """Apply Loader config"""
-    if verbose:
-        print("Removing old loader config file...")
-    try:
-        os.remove("/boot/efi/loader/loader.conf")
-    except FileNotFoundError:
-        if verbose:
-            print("File already missing. Continuing...")
-    systemd_boot_manager.check_loader(verbose=verbose)
-    print(f"{systemd_boot_manager.SUCCESS} LOADER CONFIG SUCCESSFULLY APPLIED!")
-
-
-
-def _get_devices():
-    """Get devices from LSBLK"""
-    try:
-        devices = json.loads(subprocess.check_output(["lsblk", "--output",
-                                                      "PATH,TYPE,MOUNTPOINT,PARTUUID",
-                                                      "--json",
-                                                      "--paths"]).decode().replace("I", "i"))
-    except subprocess.CalledProcessError as err:
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "CANNOT GET ROOT PARTITION UUID. LSBLK FAILED." + systemd_boot_manager.CLEAR)
-        systemd_boot_manager.eprint("The error was: ")
-        systemd_boot_manager.eprint(err.output)
-        sys.exit(err.returncode)
-    devices = devices["blockdevices"]
-    for each in range(len(devices) - 1, -1, -1):
-        if "loop" == devices[each]["type"]:
-            del devices[each]
-    return devices
-
-
-def get_root_partition(verbose):
-    """Determine the root partition"""
-    if verbose:
-        print("getting devices . . .")
-    devices = _get_devices()
-    for each in devices:
-        if each["mountpoint"] == "/":
-            if verbose:
-                print(f"Found root partition to be: { each['path'] }")
-            return each["path"]
-
-
-
-def get_UUID(verbose):
-    """Get UUID for the root partition"""
-    # Get root partition
-    settings_file = "../../etc/systemd-boot-manager/general.json"
-    if verbose:
-        print("Getting root partition...")
-    uuid = get_root_partition(verbose)
-    # get key setting
-    if os.path.exists(settings_file):
-        with open(settings_file, "r") as file:
-            settings = json.load(file)
-        try:
-            key = settings["key"].upper()
-        except KeyError:
-            key = "PARTUUID"
-    else:
-        key = "PARTUUID"
-    if verbose:
-        print(f"Parsing for { key }s . . .")
-    try:
-        uuid = systemd_boot_manager.get_key(uuid)
-    except ValueError:
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + f"Not a valid key type: { key }" + systemd_boot_manager.CLEAR)
-    # we get our key
-    return uuid
-
-
-def generate_settings(uuid, default_entry=None, verbose=False):
-    """Generate settings based off the current system,
-    Or, passed settings
-    """
-    try:
-        if verbose:
-            print("Writing UUID settings to " + UUID_FILE + " . . .")
-        with open(UUID_FILE, "w") as conf:
-            conf.write(uuid)
-    except (FileNotFoundError, PermissionError) as err:
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "An Unwarrented error has occured. Please try again later." + systemd_boot_manager.CLEAR)
-        sys.exit(2)
-    systemd_boot_manager.update_defaults_file(default_entry, verbose=verbose)
-
-
-def _check_uuid(verbose=False):
-    """Check correct UUID is in use"""
-    if verbose:
-        print("Reading UUID file . . .")
-    with open(UUID_FILE, "r") as conf:
-        uuid_stored = conf.read()
-    if uuid_stored[-1] == "\n":
-        uuid_stored = uuid_stored[:-1]
-    uuid_generated = get_UUID(verbose)
-    if verbose:
-        print("Comparing UUID file to UUID in memory . . .")
-    return (uuid_stored == uuid_generated)
-
-
-def check(verbose):
-    """Check systemd-boot-manager settings"""
-    # This is like a report for use to use to explain to the user later
-    # How their config is doing
-    report = {"UUID":None, "DEFAULT": None}
-    if verbose:
-        print("Reading config files . . .")
-    if os.path.isfile(UUID_FILE):
-        report["UUID"] = _check_uuid(verbose=verbose)
-    if os.path.isfile(systemd_boot_manager.DEFAULTS_FILE):
-        report["DEFAULT"] = systemd_boot_manager.check_default_entry(verbose=verbose)
-
-    print(systemd_boot_manager.BLUE + "RUNNING CONFIGURATION CHECKS" + systemd_boot_manager.CLEAR)
-    print("-" * 20, "\n")
-    errors = 0
-    for each in report:
-        if verbose:
-            print("Checking UUID . . .")
-        if each == "UUID":
-            if report["UUID"]:
-                print(systemd_boot_manager.BLUE + "UUID: " + systemd_boot_manager.GREEN + "GOOD" + systemd_boot_manager.CLEAR)
-            else:
-                print(systemd_boot_manager.BLUE + "UUID: " + systemd_boot_manager.RED + "MISMATCH" + systemd_boot_manager.CLEAR)
-                errors += 1
-        if verbose:
-            print("Checking default entry . . .")
-        if each == "DEFAULT":
-            if report["DEFAULT"] is True:
-                print(systemd_boot_manager.BLUE + "DEFAULT BOOTLOADER ENTRY: " + systemd_boot_manager.GREEN + "GOOD" + systemd_boot_manager.CLEAR)
-            elif report["DEFAULT"] is False:
-                print(systemd_boot_manager.BLUE + "DEFAULT BOOTLOADER ENTRY: " + systemd_boot_manager.RED + "MISMATCH" + systemd_boot_manager.CLEAR)
-                errors += 1
-            else:
-                print(systemd_boot_manager.BLUE + "DEFAULT BOOTLOADER ENTRY: " + systemd_boot_manager.YELLOW + "NOT CONTROLLING" + systemd_boot_manager.CLEAR)
-    if errors != 0:
-        print(systemd_boot_manager.RED + "\nTHERE ARE ERRORS!\n" + systemd_boot_manager.CLEAR)
-        print("We suggest running `sudo systemd-boot-manager --repair' to fix these issues.")
-        sys.exit(1)
-
-
-def repair(verbose):
-    """Repair systemd-boot-manager and systemd-boot settings"""
-    if not is_root():
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to repair your settings." + systemd_boot_manager.CLEAR)
-        sys.exit(2)
-    print(systemd_boot_manager.BLUE + "INITIATING CONFIGURATION REPAIR" + systemd_boot_manager.CLEAR)
-    print("-" * 20, "\n")
-    # Get UUID
-    print(systemd_boot_manager.BLUE + "GETTING APPRORIATE SETTINGS" + systemd_boot_manager.CLEAR)
-    UUID = get_UUID(verbose)
-    # Get default entry
-    default_entry = systemd_boot_manager.get_default_boot_entry(verbose)
-    # Make them permanent
-    print(systemd_boot_manager.BLUE + "WRITING SETTINGS TO DISK" + systemd_boot_manager.CLEAR)
-    generate_settings(UUID, default_entry=default_entry, verbose=verbose)
-    systemd_boot_manager.check_loader(verbose=verbose)
-    print("\n")
-    check(verbose)
-
-
-def set_enabled():
-    """Set systemd-boot-manager as enabled"""
-    with open(f"{systemd_boot_manager.CONFIG_DIR}/enabled.conf", "w") as file:
-        file.write("enabled")
-
-
-def set_disabled():
-    """Set systemd-boot-manager as disabled"""
-    with open(f"{systemd_boot_manager.CONFIG_DIR}/enabled.conf", "w") as file:
-        file.write("")
-
-
 def get_settings(verbose):
     """Get current settings"""
-    conf = {"UUID": None, "DEFAULT_ENTRY": None}
-    if systemd_boot_manager.check_default_entry(verbose=verbose):
-        conf["DEFAULT_ENTRY"] = systemd_boot_manager.get_default_boot_entry(verbose)
+    conf = {"KEY": None, "DEFAULT_ENTRY": None}
+    if sdbm.check_default_entry(verbose=verbose):
+        conf["DEFAULT_ENTRY"] = sdbm.get_default_boot_entry(verbose)
     else:
         raise ValueError("Settings corrupted! Repair recommended!")
-    if _check_uuid(verbose=verbose):
-        conf["UUID"] = get_UUID(verbose)
-    else:
-        raise ValueError("Settings corrupted! Repair recommended!")
+    with open("../../etc/systemd-boot-manager/general.json") as file:
+        settings = json.load(file)
+    conf["KEY"] = settings["key"].upper()
+    conf[settings["key"].upper()] = sdbm.get_key(sdbm.get_root_partition(verbose),
+                                                 key_type=conf["KEY"],
+                                                 verbose=verbose)
     return conf
 
 
 def show_settings(verbose):
     """Print current settings"""
-    print(systemd_boot_manager.GREEN + "CURRENT SETTINGS" + systemd_boot_manager.CLEAR)
+    print(sdbm.GREEN + "CURRENT SETTINGS" + sdbm.CLEAR)
     print("-" * 20, "\n")
     try:
         settings = get_settings(verbose)
     except ValueError:
-        print(systemd_boot_manager.RED + "\nERROR: SETTINGS LIKELY CORRUPTED!" + systemd_boot_manager.CLEAR)
-        print(systemd_boot_manager.RED + "\nERROR: REPAIR THIS ISSUE USING THE -r FLAG!\n" + systemd_boot_manager.CLEAR)
+        print(sdbm.RED + "\nERROR: SETTINGS LIKELY CORRUPTED!" + sdbm.CLEAR)
+        print(sdbm.RED + "\nERROR: REPAIR THIS ISSUE USING THE -r FLAG!\n" + sdbm.CLEAR)
         sys.exit(2)
-    print(systemd_boot_manager.BLUE + "DEFAULT BOOT ENTRY:\t" + systemd_boot_manager.CLEAR + settings["DEFAULT_ENTRY"])
+    print(sdbm.BLUE + "DEFAULT BOOT ENTRY:\t" + sdbm.CLEAR + settings["DEFAULT_ENTRY"])
     devices = _get_devices()
     for each in devices:
         if each["partuuid"] == settings["UUID"]:
-            print(systemd_boot_manager.BLUE + "ROOT PARTITION:\t\t" + systemd_boot_manager.CLEAR + each["path"])
+            print(sdbm.BLUE + "ROOT PARTITION:\t\t" + sdbm.CLEAR + each["path"])
 
 
+# Handle flags on command line
 # get length of argv
 ARGC = len(sys.argv)
 VERBOSE = False
@@ -373,22 +229,22 @@ Update systemd-boot and available kernel stubs
 
 Pass nothing to trigger an update."""
     if ARGC >= 2:
-        if sys.argv[1].lower() in ("-v", "--verbose"):
-            trigger(True)
+        if ((sys.argv[1].lower() == "--verbose") or (sys.argv[1] == "-v")):
+            update(True)
         elif sys.argv[1].lower() in ("-h", "--help"):
             print(HELP)
-        elif sys.argv[1].lower() in ("-V", "--version"):
+        elif ((sys.argv[1].lower() == "--version") or (sys.argv[1] == "-V")):
             print(VERSION)
         else:
             print(HELP)
             sys.exit(1)
     else:
-        trigger(False)
-elif "systemd-boot-manager" in sys.argv[0]:
+        update(False)
+else:
     if ARGC >= 2:
     # check for verbose flag first
         for each in enumerate(sys.argv):
-            if sys.argv[each[0]] in ("-V", "--verbose"):
+            if sys.argv[each[0]] in ("-v", "--verbose"):
                 VERBOSE = True
                 POINT = each[0]
                 break
@@ -398,10 +254,10 @@ elif "systemd-boot-manager" in sys.argv[0]:
             POINT = 1
         if sys.argv[POINT] in ("-h", "--help"):
             print(HELP)
-        elif sys.argv[POINT] in ("-v", "--version"):
+        elif sys.argv[POINT] in ("-V", "--version"):
             print(VERSION)
         elif sys.argv[POINT] in ("-u", "--update"):
-            trigger(VERBOSE)
+            update(VERBOSE)
         elif sys.argv[POINT] in ("-c", "--check"):
             check(VERBOSE)
         elif sys.argv[POINT] in ("-r", "--repair"):
@@ -409,104 +265,41 @@ elif "systemd-boot-manager" in sys.argv[0]:
         elif sys.argv[POINT] in ("-s", "--show-settings"):
             show_settings(VERBOSE)
         elif sys.argv[POINT] in ("-l", "--list"):
-            entries = systemd_boot_manager.get_boot_entries(verbose=VERBOSE)
-            print(systemd_boot_manager.BLUE + "BOOT LOADER ENTRIES" + systemd_boot_manager.CLEAR)
-            print("-" * 20, "\n")
-            for each in entries:
-                print("\t-  " + each)
-                print("\t\tID: " + entries[each]["id"])
-                print("\t\tDefault: " + str(entries[each]["default"]), "\n")
+            list_boot_entries(VERBOSE)
         elif sys.argv[POINT] in ("-d", "--default"):
             if len(sys.argv) < 3:
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "No default specified." + systemd_boot_manager.CLEAR)
+                sdbm.eprint(sdbm.ERROR + "No default specified." + sdbm.CLEAR)
                 sys.exit(2)
-            systemd_boot_manager.set_as_default_entry(sys.argv[POINT + 1])
+            sdbm.set_as_default_entry(sys.argv[POINT + 1])
         elif sys.argv[POINT] in ("-e", "--enable"):
-            if not is_root():
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to be run this program as root to enable systemd-boot-manager." + systemd_boot_manager.CLEAR)
-                sys.exit(2)
-            if not systemd_boot_manager.is_enabled():
-                set_enabled()
-                print(systemd_boot_manager.SUCCESS + "systemd-boot-manager enabled!" + systemd_boot_manager.CLEAR)
-                sys.exit(0)
-            else:
-                print(systemd_boot_manager.WARNING + "systemd-boot-manager already enabled." + systemd_boot_manager.CLEAR)
-                sys.exit(1)
+            enable(VERBOSE)
         elif sys.argv[POINT] == "--disable":
-            if not is_root():
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to be run this program as root to disable systemd-boot-manager." + systemd_boot_manager.CLEAR)
-                sys.exit(2)
-            if not systemd_boot_manager.is_enabled():
-                systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "systemd-boot-manager already disabled." + systemd_boot_manager.CLEAR)
-                sys.exit(1)
-            else:
-                set_disabled()
-                print(systemd_boot_manager.SUCCESS + "systemd-boot-manager disabled!" + systemd_boot_manager.CLEAR)
-                sys.exit(0)
+            disable(VERBOSE)
         elif "--enforce-default-entry" in sys.argv[POINT]:
-            if not is_root():
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to enable or disable boot entry enforcment." + systemd_boot_manager.CLEAR)
-                sys.exit(2)
-            setting = sys.argv[POINT][24:].lower()
-            if setting == "enable":
-                subprocess.check_call(["systemctl", "enable", "systemd-boot-manager"])
-            elif setting == "disable":
-                subprocess.check_call(["systemctl", "disable", "systemd-boot-manager"])
-            elif setting == "":
-                systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR}No option given. Option must be one of either `enable' or `disable'.{systemd_boot_manager.CLEAR}")
-            else:
-                systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR}Invalid option given. Option must be one of either `enable' or `disable'.{systemd_boot_manager.CLEAR}")
+            enforce_default_entry(sys.argv[POINT], VERBOSE)
         elif sys.argv[POINT] in ("-t", "--timeout"):
             if not is_root():
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to change settings." + systemd_boot_manager.CLEAR)
+                sdbm.eprint(sdbm.ERROR + "You need to run this program as root to change settings." + sdbm.CLEAR)
                 sys.exit(2)
             if ((len(sys.argv) - 1) > (POINT + 1)):
-                systemd_boot_manager.eprint(f"{systemd_boot_manager.ERROR}No option given. Option must be a positive integer.{systemd_boot_manager.CLEAR}")
+                sdbm.eprint(f"{sdbm.ERROR}No option given. Option must be a positive integer.{sdbm.CLEAR}")
             set_timeout(timeout=sys.argv[POINT + 1], verbose=VERBOSE)
         elif sys.argv[POINT] == "--apply-loader-config":
             if not is_root():
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to change settings." + systemd_boot_manager.CLEAR)
+                sdbm.eprint(sdbm.ERROR + "You need to run this program as root to change settings." + sdbm.CLEAR)
                 sys.exit(2)
             apply_loader(verbose=VERBOSE)
         elif "--editor" in sys.argv[POINT]:
             if not is_root():
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "You need to run this program as root to change settings." + systemd_boot_manager.CLEAR)
+                sdbm.eprint(sdbm.ERROR + "You need to run this program as root to change settings." + sdbm.CLEAR)
                 sys.exit(2)
             setting = sys.argv[POINT][9:].lower()
             set_editor(enable=setting, verbose=VERBOSE)
         elif "--dual-boot" in sys.argv[POINT]:
-            status = sys.argv[POINT][12:]
-            with open("/etc/systemd-boot-manager/general.json", "r") as file:
-                settings = json.load(file)
-            if status == "":
-                if settings["dual-boot"] is True:
-                    print(systemd_boot_manager.SUCCESS + "Dual-boot Support is Enabled." + systemd_boot_manager.CLEAR)
-                else:
-                    print(systemd_boot_manager.STATUS + "Dual-boot Support is Disabled." + systemd_boot_manager.CLEAR)
-            else:
-                status = status.lower()
-                if status == "enable":
-                    if settings["dual-boot"] is True:
-                        print(systemd_boot_manager.SUCCESS + "Dual-boot Support is already Enabled." + systemd_boot_manager.CLEAR)
-                    else:
-                        settings["dual-boot"] = True
-                        with open("/etc/systemd-boot-manager/general.json", "w") as file:
-                            json.dump(settings, file, indent=2)
-                        print(systemd_boot_manager.SUCCESS + "Dual-boot Support is Enabled." + systemd_boot_manager.CLEAR)
-                elif status == "disable":
-                    if settings["dual-boot"] is not True:
-                        print(systemd_boot_manager.STATUS + "Dual-boot Support is already Disabled." + systemd_boot_manager.CLEAR)
-                    else:
-                        settings["dual-boot"] = False
-                        with open("/etc/systemd-boot-manager/general.json", "w") as file:
-                            json.dump(settings, file, indent=2)
-                        print(systemd_boot_manager.STATUS + "Dual-boot Support is Disabled." + systemd_boot_manager.CLEAR)
-                else:
-                    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + f"'{status}' not understood. Please use either 'enable' or 'disable'.")
-                    sys.exit(1)
-
+            arg = sys.argv[POINT][12:]
+            dual_boot(arg, VERBOSE)
         else:
-            systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Flag: " + sys.argv[1] + " Not understood." + systemd_boot_manager.CLEAR)
+            sdbm.eprint(sdbm.ERROR + "Flag: " + sys.argv[1] + " Not understood." + sdbm.CLEAR)
             print(HELP)
             sys.exit(1)
     else:
