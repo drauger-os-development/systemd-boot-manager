@@ -129,9 +129,9 @@ def get_default_boot_entry(verbose):
             return entries[each]["id"]
 
 
-def set_as_default_entry(entry, edit_file=True):
+def set_as_default_entry(entry, edit_file=True, verbose=False):
     """Set 'entry' as the default bootloader entry"""
-    entries = get_boot_entries()
+    entries = get_boot_entries(verbose=verbose)
     for each in entries:
         if entries[each]["id"] == entry:
             if entries[each]["default"] is True:
@@ -243,7 +243,7 @@ def get_key(device, key_type="uuid"):
             return each[key_type]
 
 
-def _get_devices():
+def get_devices():
     """Get devices from LSBLK"""
     try:
         devices = json.loads(subprocess.check_output(["lsblk", "--output",
@@ -266,7 +266,7 @@ def get_root_partition(verbose):
     """Determine the root partition"""
     if verbose:
         print("getting devices . . .")
-    devices = _get_devices()
+    devices = get_devices()
     for each in devices:
         if each["mountpoint"] == "/":
             if verbose:
