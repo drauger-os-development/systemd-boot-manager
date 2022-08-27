@@ -208,6 +208,7 @@ elif os.path.exists("../../systemd-boot-manager/UUID.conf"):
             break
         elif ROOT_POINTER == each["label"]:
             ROOT_POINTER = f"LABEL={ ROOT_POINTER }"
+            break
 else:
     # this entire block exists to improve stability and resliancy. In case one of the 2 files we looked for perviously don't exist, we still have other options.
     systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "Could not find settings files that point to root partition. Will attempt to infer..." + systemd_boot_manager.CLEAR)
