@@ -197,7 +197,7 @@ elif os.path.exists("../../systemd-boot-manager/UUID.conf"):
         ROOT_POINTER = file.read()
     ROOT_POINTER = ROOT_POINTER.split("\n")[0]
     uuids = json.loads(subprocess.check_output(["lsblk", "--json",
-                                                "--output", "path,uuid,partuuid"]))
+                                                "--output", "path,uuid,partuuid,label"]))
     uuids = uuids["blockdevices"]
     for each in uuids:
         if ROOT_POINTER == each["uuid"]:
@@ -206,6 +206,8 @@ elif os.path.exists("../../systemd-boot-manager/UUID.conf"):
         elif ROOT_POINTER == each["partuuid"]:
             ROOT_POINTER = f"PARTUUID={ ROOT_POINTER }"
             break
+        elif ROOT_POINTER == each["label"]:
+            ROOT_POINTER = f"LABEL={ ROOT_POINTER }"
 else:
     # this entire block exists to improve stability and resliancy. In case one of the 2 files we looked for perviously don't exist, we still have other options.
     systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "Could not find settings files that point to root partition. Will attempt to infer..." + systemd_boot_manager.CLEAR)
