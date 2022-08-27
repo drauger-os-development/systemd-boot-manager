@@ -422,6 +422,41 @@ def check(verbose):
         sys.exit(1)
 
 
+def repair(verbose):
+    """Repair systemd-boot-manager and systemd-boot settings"""
+    if not sdbm.is_root():
+        sdbm.eprint(sdbm.ERROR + "You need to run this program as root to repair your settings." + sdbm.CLEAR)
+        sys.exit(2)
+    print(sdbm.BLUE + "INITIATING CONFIGURATION REPAIR" + sdbm.CLEAR)
+    print("-" * 20, "\n")
+    # Get UUID
+    print(sdbm.BLUE + "GETTING APPRORIATE SETTINGS" + sdbm.CLEAR)
+    path = sdbm.get_root_partition(verbose)
+    # Get default entry
+    default_entry = sdbm.get_default_boot_entry(verbose)
+    # Make them permanent
+    print(sdbm.BLUE + "WRITING SETTINGS TO DISK" + sdbm.CLEAR)
+    generate_settings(path, default_entry=default_entry, verbose=verbose)
+    sdbm.check_loader(verbose=verbose)
+    print("\n")
+    check(verbose)
+
+
+def generate_settings(path, default_entry=None, verbose=False):
+    """Generate settings based off the current system,
+    Or, passed settings
+    """
+    try:
+        if verbose:
+            print("Writing UUID settings to " + sdbm.ROOT_DEVICE_FILE + " . . .")
+        with open(sdbm.ROOT_DEVICE_FILE, "w") as conf:
+            conf.write(path)
+    except (FileNotFoundError, PermissionError) as err:
+        sdbm.eprint(sdbm.ERROR + "An Unwarrented error has occured. Please try again later." + sdbm.CLEAR)
+        sys.exit(2)
+    sdbm.update_defaults_file(default_entry, verbose=verbose)
+
+
 # Handle flags on command line
 # get length of argv
 ARGC = len(sys.argv)
