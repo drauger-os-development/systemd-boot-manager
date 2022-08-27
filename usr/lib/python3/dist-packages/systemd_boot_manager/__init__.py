@@ -283,10 +283,14 @@ def is_root():
     return (os.geteuid() == 0)
 
 
-def get_settings():
+def get_settings(verbose=False):
     """Retreive settings"""
     try:
+        if verbose:
+            print("Attemptng to read settings file...")
         with open("../../systemd-boot-manager/general.json", "r") as file:
+            if verbose:
+                print("Parsing settings file...")
             SETTINGS = json.load(file)
     except (FileNotFoundError, json.decoder.JSONDecodeError):
         # if the file accidentally gets deleted, or mis-formatted, fall back to this internal setup
@@ -299,6 +303,26 @@ def get_settings():
         "key": "partuuid"
         }
     return SETTINGS
+
+
+def set_settings(key, value, verbose=False):
+    """Set a settings value"""
+    settings = get_settings(verbose=verbose)
+    if key.lower() in settings.keys():
+        if key.lower() in ("no-var", "dual-boot"):
+            if str(value) in ("1", "True", "enable", "on"):
+                value = True
+            else:
+                value = False
+        if key.lower() == "key":
+            if value.lower() not in ("partuuid", "uuid", "path", "label"):
+                raise ValueError(f"{ value }: Not a valid value for keys. Must be one of 'partuuid', 'uuid', 'path', 'label'")
+            value = value.lower()
+        settings[key.lower()] = value
+        with open("../../systemd-boot-manager/general.json", "w") as file:
+            json.dump(settings, file, indent=2)
+    else:
+        raise ValueError(f"{ key }: Not a valid key.")
 
 
 def check_uuid(verbose=False):
