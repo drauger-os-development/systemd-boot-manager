@@ -42,6 +42,10 @@ SUCCESS = NAME + "\t" + GREEN
 
 CONFIG_DIR = "/etc/systemd-boot-manager"
 DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
+UUID_FILE = CONFIG_DIR + "/UUID.conf"
+ROOT_DEVICE_FILE = CONFIG_DIR + "/root_device.conf"
+
+
 
 
 DISTRO = distro.name().replace(" ", "_")
@@ -277,3 +281,47 @@ def get_root_partition(verbose):
 def is_root():
     """Check if we have root"""
     return (os.geteuid() == 0)
+
+
+def get_settings():
+    """Retreive settings"""
+    try:
+        with open("../../systemd-boot-manager/general.json", "r") as file:
+            SETTINGS = json.load(file)
+    except (FileNotFoundError, json.decoder.JSONDecodeError):
+        # if the file accidentally gets deleted, or mis-formatted, fall back to this internal setup
+        eprint(ERROR + "/etc/systemd-boot-manager/general.json is misformatted or missing. Falling back to internal defaults..." + CLEAR)
+        SETTINGS = {
+        "no-var": False,
+        "standard_boot_args": "quiet splash",
+        "recovery_args": "ro recovery nomodeset",
+        "dual-boot": True,
+        "key": "partuuid"
+        }
+    return SETTINGS
+
+
+def check_uuid(verbose=False):
+    """Check correct UUID is in use"""
+    if verbose:
+        print("Reading UUID file . . .")
+    with open(UUID_FILE, "r") as conf:
+        uuid_stored = conf.read()
+    if uuid_stored[-1] == "\n":
+        uuid_stored = uuid_stored[:-1]
+    uuid_generated = get_UUID(verbose)
+    if verbose:
+        print("Comparing UUID file to UUID in memory . . .")
+    return (uuid_stored == uuid_generated)
+
+
+def get_UUID(verbose, uuid="partuuid"):
+    """Get UUID for the root partition"""
+    # Get root partition
+    if verbose:
+        print("Getting root partition...")
+    part = get_root_partition(verbose)
+    # get key setting
+    uuid = get_key(part, uuid, verbose)
+    # we get our key
+    return uuid

@@ -170,19 +170,7 @@ ROOT_FLAGS = "quiet splash"
 RECOVERY_FLAGS = "ro recovery nomodeset"
 
 # System Settings
-try:
-    with open("../../systemd-boot-manager/general.json", "r") as file:
-        SETTINGS = json.load(file)
-except (FileNotFoundError, json.decoder.JSONDecodeError):
-    # if the file accidentally gets deleted, or mis-formatted, fall back to this internal setup
-    systemd_boot_manager.eprint(ystemd_boot_manager.ERROR + "/etc/systemd-boot-manager/general.json is misformatted or missing. Falling back to internal defaults..." + systemd_boot_manager.CLEAR)
-    SETTINGS = {
-    "no-var": False,
-    "standard_boot_args": "quiet splash",
-    "recovery_args": "ro recovery nomodeset",
-    "dual-boot": True,
-    "key": "partuuid"
-}
+SETTINGS = systemd_boot_manager.get_settings(VERBOSE)
 
 # make sure settings are valid
 if "standard_boot_args" not in SETTINGS:

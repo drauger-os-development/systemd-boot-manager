@@ -158,8 +158,7 @@ def enforce_default_entry(arg, verbose):
 
 def dual_boot(arg, verbose):
     """Report or update dual-boot setting"""
-    with open("/etc/systemd-boot-manager/general.json", "r") as file:
-        settings = json.load(file)
+    settings = sdbm.get_settings(verbose)
     if arg == "":
         if settings["dual-boot"] is True:
             print(sdbm.SUCCESS + "Dual-boot Support is Enabled." + sdbm.CLEAR)
@@ -347,6 +346,80 @@ def apply_loader(verbose=False):
             print("File already missing. Continuing...")
     sdbm.check_loader(verbose=verbose)
     print(f"{ sdbm.SUCCESS }LOADER CONFIG SUCCESSFULLY APPLIED!{ sdbm.CLEAR }")
+
+
+def check(verbose):
+    """Check systemd-boot-manager settings"""
+    if not sdbm.is_enabled():
+        sdbm.eprint(f"{ sdbm.WARNING }systemd-boot-manager is not enabled. Not checking settings.{ sdbm.CLEAR }")
+        sdbm.eprint(f"{ sdbm.NAME }To enable systemd-boot-manager, run `sudo systemd-boot-manager --enable`{ sdbm.CLEAR }")
+        sys.exit(1)
+        # print warning and exit
+    settings = sdbm.get_settings(verbose)
+    if ["no-var"] is not True:
+        sdbm.eprint(f"{ sdbm.WARNING }EFI variables are disabled.{ sdbm.CLEAR }")
+    if verbose:
+        print("Checking if using new or old settings format...")
+    if os.path.exists(f"{ sdbm.CONFIG_DIR }/root_device.conf"):
+        if verbose:
+            print("Detected new settings format.")
+        # compare to root partition in lsblk and indicated in loader.conf
+        # initialize our report to the user
+        report = {"KEYS": False, "DEFAULT BOOTLOADER ENTRY": None}
+        # set up key storage
+        keys = {"KEY": settings["key"],
+                "root_part": sdbm.get_root_partition(verbose)}
+        # get our key
+        keys[settings["key"]] = sdbm.get_key(keys["root_part"], settings["key"])
+        # check if default bootloader is being honored
+        if os.path.isfile(sdbm.DEFAULTS_FILE):
+            report["DEFAULT BOOTLOADER ENTRY"] = sdbm.check_default_entry(verbose=verbose)
+        # get key for root parition
+        with open(f"/boot/efi/loader/entries/{ sdbm.DISTRO }.conf", "r") as file:
+            output = file.read().split("\n")
+        for each in output:
+            if "options" in each:
+                output = each
+                break
+        output = output.split(" ")
+        for each in output:
+            if "root" in each:
+                output = each
+                break
+        output = output.split("=")[-1]
+        # compare to expected key
+        report["KEYS"] = (output == keys[settings["key"]])
+    else:
+        if verbose:
+            print("Assuming old settings format.")
+        # do the old method of checking the UUID here
+        # initialize our report to the user
+        report = {"PARTUUID": False, "DEFAULT BOOTLOADER ENTRY": None}
+        if os.path.isfile(sdbm.UUID_FILE):
+            report["PARTUUID"] = sdbm.check_uuid(verbose=verbose)
+        if os.path.isfile(sdbm.DEFAULTS_FILE):
+            report["DEFAULT BOOTLOADER ENTRY"] = sdbm.check_default_entry(verbose=verbose)
+    # figure out formatting
+    length = 0
+    for each in report:
+        if len(each) > length:
+            length = len(each)
+    length += 8
+    errors = 0
+    for each in report:
+        output_length = length - len(each)
+        print(f"{ sdbm.BLUE }{ each }:{ sdbm.CLEAR }{ ' ' * output_length }", end = "")
+        if report[each] is True:
+            print(f"{ sdbm.GREEN }GOOD{ sdbm.CLEAR }")
+        elif report[each] is False:
+            errors += 1
+            print(f"{ sdbm.RED }MISMATCH{ sdbm.CLEAR }")
+        else:
+            print(f"{ sdbm.YELLOW }N/A{ sdbm.CLEAR }")
+    if errors != 0:
+        sdbm.eprint(sdbm.RED + "\nTHERE ARE ERRORS!\n" + sdbm.CLEAR)
+        sdbm.eprint("We suggest running `sudo systemd-boot-manager --repair' to fix these issues.")
+        sys.exit(1)
 
 
 # Handle flags on command line
