@@ -151,11 +151,13 @@ class LooseVersion():
 
 
 # end class LooseVersion
-
+VERBOSE = False
+if len(sys.argv) > 1:
+    if sys.argv[1] == "-v":
+        VERBOSE = True
 
 
 NEEDED_FILES = ["config", "initrd.img", "System.map", "vmlinuz"]
-VERBOSE = False
 
 # Important Dirs/Files
 BOOT_DIR = "/boot/"
@@ -165,35 +167,26 @@ CLEAN_DIR = SD_LOADER_DIR + "/entries/"
 LOADER_DIR = EFI_DIR + "/" + systemd_boot_manager.DISTRO + "/"
 CONF_FILE = [CLEAN_DIR + systemd_boot_manager.DISTRO, ".conf"]
 
-# Default Flags
-ROOT_FLAGS = "quiet splash"
-RECOVERY_FLAGS = "ro recovery nomodeset"
 
 # System Settings
 SETTINGS = systemd_boot_manager.get_settings(VERBOSE)
 
-# make sure settings are valid
-if "standard_boot_args" not in SETTINGS:
-    SETTINGS["standard_boot_args"] = ROOT_FLAGS
-if "recovery_args" not in SETTINGS:
-    SETTINGS["recovery_args"] = RECOVERY_FLAGS
-if "key" not in SETTINGS:
-    SETTINGS["key"] = "partuuid"
-
 # Default Loader Conf File
 # We have to edit this in several places, multiple different times.
 # Having the default file as a list like this will make that faster
-if os.path.exists("../../systemd-boot-manager/root_device.conf"):
+if os.path.exists("/etc/systemd-boot-manager/root_device.conf"):
     # this is the easiest solution for the user, but takes more processing for us
-    with open("../../systemd-boot-manager/root_device.conf", "r") as file:
+    with open("/etc/systemd-boot-manager/root_device.conf", "r") as file:
          ROOT_POINTER = file.read()
     ROOT_POINTER = ROOT_POINTER.split("\n")[0]
-    ROOT_POINTER = systemd_boot_manager.get_key(ROOT_POINTER, SETTINGS["key"])
-    if SETTINGS["key"].lower() is not "path":
+    ROOT_POINTER = systemd_boot_manager.get_key(ROOT_POINTER, SETTINGS["key"],
+                                                verbose=VERBOSE)
+    print(ROOT_POINTER)
+    if SETTINGS["key"].lower() != "path":
         ROOT_POINTER = f"{ SETTINGS['key'].upper() }={ ROOT_POINTER }"
-elif os.path.exists("../../systemd-boot-manager/UUID.conf"):
+elif os.path.exists("/etc/systemd-boot-manager/UUID.conf"):
     # this takes less processing from us, but we have to figure out if this is a UUID or PARTUUID
-    with open("../../systemd-boot-manager/UUID.conf", "r") as file:
+    with open("/etc/systemd-boot-manager/UUID.conf", "r") as file:
         ROOT_POINTER = file.read()
     ROOT_POINTER = ROOT_POINTER.split("\n")[0]
     uuids = json.loads(subprocess.check_output(["lsblk", "--json",
@@ -212,7 +205,8 @@ elif os.path.exists("../../systemd-boot-manager/UUID.conf"):
 else:
     # this entire block exists to improve stability and resliancy. In case one of the 2 files we looked for perviously don't exist, we still have other options.
     systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "Could not find settings files that point to root partition. Will attempt to infer..." + systemd_boot_manager.CLEAR)
-    devices = json.loads(subprocess.check_output(["lsblk", "--json", "--output"
+    devices = json.loads(subprocess.check_output(["lsblk", "--json",
+                                                  "--output",
                                                   "mountpoint,partuuid"]))
     devices = devices["blockdevices"]
     root = ""
@@ -228,9 +222,6 @@ CONF_FILE_CONTENTS = ["title  " + systemd_boot_manager.DISTRO,
                       "linux   /" + systemd_boot_manager.DISTRO + "/vmlinuz",
                       "initrd  /" + systemd_boot_manager.DISTRO + "/initrd.img",
                       "options root=" + ROOT_POINTER]
-if len(sys.argv) > 1:
-    if sys.argv[1] == "-v":
-        VERBOSE = True
 
 
 def check_for_files(files):
@@ -314,12 +305,6 @@ if not systemd_boot_manager.is_enabled():
     sys.exit(0)
 
 print(systemd_boot_manager.STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT" + systemd_boot_manager.CLEAR)
-# Get our UUID
-with open(f"{systemd_boot_manager.CONFIG_DIR}/UUID.conf", "r") as uuid_conf:
-    UUID = uuid_conf.read()
-
-# Make sure that if there is a trailing new line, we parse it out
-UUID = UUID.split("\n")[0]
 
 # Get size of /boot/efi partition
 PARTS = json.loads(subprocess.check_output(["lsblk", "--output",
@@ -468,13 +453,13 @@ if not os.path.exists(CLEAN_DIR):
 
 # Generate Config Files
 with open("".join(CONF_FILE), "w+") as output:
-    output.write("\n".join(CONF_FILE_CONTENTS) + UUID + " " + SETTINGS["standard_boot_args"])
+    output.write("\n".join(CONF_FILE_CONTENTS) + " " + SETTINGS["standard_boot_args"])
 with open("_Recovery".join(CONF_FILE), "w+") as output:
     for each in enumerate(CONF_FILE_CONTENTS):
         if each[0] == 0:
             output.write(CONF_FILE_CONTENTS[each[0]] + " Recovery")
         elif each[0] == len(CONF_FILE_CONTENTS) - 1:
-            output.write(CONF_FILE_CONTENTS[each[0]] + UUID + " " + SETTINGS["recovery_args"])
+            output.write(CONF_FILE_CONTENTS[each[0]] + " " + SETTINGS["recovery_args"])
         else:
             output.write(CONF_FILE_CONTENTS[each[0]])
         output.write("\n")
@@ -532,7 +517,7 @@ if len(KERNELS) >= 1:
                 elif line in (1, 2):
                     output.write(each + "-" + VERSION + "\n")
                 else:
-                    output.write(each + UUID + " " + SETTINGS["standard_boot_args"])
+                    output.write(each + " " + SETTINGS["standard_boot_args"])
                 line += 1
         # Also make sure they have Legacy recovery. Cause it can be a life saver.
         with open(("-" + VERSION + "_Recovery").join(CONF_FILE),
@@ -544,7 +529,7 @@ if len(KERNELS) >= 1:
                 elif line in (1, 2):
                     output.write(each + "-" + VERSION + "\n")
                 else:
-                    output.write(each + UUID + " " + SETTINGS["recovery_args"])
+                    output.write(each + " " + SETTINGS["recovery_args"])
                 line += 1
 
 # Finally, we are done! Woot!

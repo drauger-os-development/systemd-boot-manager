@@ -390,13 +390,15 @@ def apply_loader(verbose=False):
 
 def check(verbose):
     """Check systemd-boot-manager settings"""
+    print(sdbm.BLUE + "RUNNING CONFIGURATION CHECKS" + sdbm.CLEAR)
+    print("-" * 20, "\n")
     if not sdbm.is_enabled():
         sdbm.eprint(f"{ sdbm.WARNING }systemd-boot-manager is not enabled. Not checking settings.{ sdbm.CLEAR }")
         sdbm.eprint(f"{ sdbm.NAME }To enable systemd-boot-manager, run `sudo systemd-boot-manager --enable`{ sdbm.CLEAR }")
         sys.exit(1)
         # print warning and exit
     settings = sdbm.get_settings(verbose)
-    if ["no-var"] is not True:
+    if ["no-var"] is True:
         sdbm.eprint(f"{ sdbm.WARNING }EFI variables are disabled.{ sdbm.CLEAR }")
     if verbose:
         print("Checking if using new or old settings format...")
@@ -410,7 +412,8 @@ def check(verbose):
         keys = {"KEY": settings["key"],
                 "root_part": sdbm.get_root_partition(verbose)}
         # get our key
-        keys[settings["key"]] = sdbm.get_key(keys["root_part"], keys["KEY"])
+        keys[keys["KEY"]] = sdbm.get_key(keys["root_part"], keys["KEY"],
+                                         verbose=verbose)
         # check if default bootloader is being honored
         if os.path.isfile(sdbm.DEFAULTS_FILE):
             report["DEFAULT BOOTLOADER ENTRY"] = sdbm.check_default_entry(verbose=verbose)
@@ -492,7 +495,7 @@ def generate_settings(path, default_entry=None, verbose=False):
     """
     try:
         if verbose:
-            print("Writing UUID settings to " + sdbm.ROOT_DEVICE_FILE + " . . .")
+            print("Writing root partition to " + sdbm.ROOT_DEVICE_FILE + " . . .")
         with open(sdbm.ROOT_DEVICE_FILE, "w") as conf:
             conf.write(path)
     except (FileNotFoundError, PermissionError):
@@ -507,13 +510,14 @@ def key_handler(arg, verbose):
     # handle key settings
     settings = sdbm.get_settings(verbose=verbose)
     if arg == "":
-        print(f"{ sdbm.BLUE }KEY TYPE: { settings['key'] }")
+        print(f"{ sdbm.BLUE }KEY TYPE: { sdbm.CLEAR }{ settings['key'] }")
         sys.exit(0)
     if arg.lower() not in ("uuid", "partuuid", "label", "path"):
         sdbm.eprint(f"{ sdbm.ERROR }{ arg }: not a valid key type. Must be one of 'uuid', 'partuuid', 'label', or 'path'")
         sys.exit(2)
     sdbm.set_settings("key", arg, verbose=verbose)
     print(f"{ sdbm.SUCCESS }Key Type changed to: { arg.upper() }")
+    print(f"{ sdbm.NAME }\tYou might want to run `sudo systemd-boot-manager -u` to update your bootloader")
 
 
 def set_enabled():
@@ -614,7 +618,7 @@ else:
             arg = sys.argv[POINT][12:]
             dual_boot(arg, VERBOSE)
         elif "--key" in sys.argv[POINT]:
-            arg = sys.argv[POINT][5:]
+            arg = sys.argv[POINT][6:]
             key_handler(arg, VERBOSE)
         else:
             sdbm.eprint(sdbm.ERROR + "Flag: " + sys.argv[1] + " Not understood." + sdbm.CLEAR)

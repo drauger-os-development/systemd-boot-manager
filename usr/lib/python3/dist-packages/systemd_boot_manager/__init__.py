@@ -46,6 +46,9 @@ UUID_FILE = CONFIG_DIR + "/UUID.conf"
 ROOT_DEVICE_FILE = CONFIG_DIR + "/root_device.conf"
 
 
+# Default Flags
+ROOT_FLAGS = "quiet splash"
+RECOVERY_FLAGS = "ro recovery nomodeset"
 
 
 DISTRO = distro.name().replace(" ", "_")
@@ -222,7 +225,7 @@ def check_loader(verbose=False):
             print("New loader file created")
 
 
-def get_key(device, key_type="uuid"):
+def get_key(device, key_type="uuid", verbose=False):
     """Get the key used to point to a specific device at boot.
     `key_type` can be one of:
 
@@ -231,12 +234,18 @@ def get_key(device, key_type="uuid"):
     LABEL
     PATH
     """
+    if verbose:
+        print("Ensure valid key type...")
     key_type = key_type.lower()
     types = ("uuid", "partuuid", "path", "label")
     if key_type not in types:
         raise ValueError(f"'{ key_type }' not one of: { ', '.join(types) }")
+    if verbose:
+        print("Ensure valid device...")
     if not os.path.exists(device):
         raise FileNotFoundError(f"'{ device }: path not recognized'")
+    if verbose:
+        print(f"Getting { key_type } for { device }...")
     output = json.loads(subprocess.check_output(["lsblk", "--json",
                                                  "--output",
                                                  f"path,{ key_type }",
@@ -252,8 +261,7 @@ def get_devices():
     try:
         devices = json.loads(subprocess.check_output(["lsblk", "--output",
                                                       "PATH,TYPE,MOUNTPOINT,PARTUUID",
-                                                      "--json",
-                                                      "--paths"]).decode().replace("I", "i"))
+                                                      "--json"]).decode().replace("I", "i"))
     except subprocess.CalledProcessError as err:
         eprint(ERROR + "CANNOT GET ROOT PARTITION UUID. LSBLK FAILED." + CLEAR)
         eprint("The error was: ")
@@ -287,8 +295,8 @@ def get_settings(verbose=False):
     """Retreive settings"""
     try:
         if verbose:
-            print("Attemptng to read settings file...")
-        with open("../../systemd-boot-manager/general.json", "r") as file:
+            print("Attempting to read settings file...")
+        with open("/etc/systemd-boot-manager/general.json", "r") as file:
             if verbose:
                 print("Parsing settings file...")
             SETTINGS = json.load(file)
@@ -302,6 +310,13 @@ def get_settings(verbose=False):
         "dual-boot": True,
         "key": "partuuid"
         }
+    # make sure settings are valid
+    if "standard_boot_args" not in SETTINGS:
+        SETTINGS["standard_boot_args"] = ROOT_FLAGS
+    if "recovery_args" not in SETTINGS:
+        SETTINGS["recovery_args"] = RECOVERY_FLAGS
+    if "key" not in SETTINGS:
+        SETTINGS["key"] = "partuuid"
     return SETTINGS
 
 
@@ -319,7 +334,7 @@ def set_settings(key, value, verbose=False):
                 raise ValueError(f"{ value }: Not a valid value for keys. Must be one of 'partuuid', 'uuid', 'path', 'label'")
             value = value.lower()
         settings[key.lower()] = value
-        with open("../../systemd-boot-manager/general.json", "w") as file:
+        with open("/etc/systemd-boot-manager/general.json", "w") as file:
             json.dump(settings, file, indent=2)
     else:
         raise ValueError(f"{ key }: Not a valid key.")
