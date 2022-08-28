@@ -571,6 +571,10 @@ else:
             POINT = 2
         else:
             POINT = 1
+        # in case we are ONLY passed a -v/--verbose flag
+        if ((ARGC == 2) and VERBOSE):
+            sdbm.eprint(f"{ sdbm.ERROR }Plain verbose flag passed. Did you mean to call `sudo update-systemd-boot -v`?")
+            sys.exit(1)
         if sys.argv[POINT] in ("-h", "--help"):
             print(HELP)
         elif sys.argv[POINT] in ("-V", "--version"):
