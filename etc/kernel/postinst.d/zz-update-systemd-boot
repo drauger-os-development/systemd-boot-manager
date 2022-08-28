@@ -181,7 +181,6 @@ if os.path.exists("/etc/systemd-boot-manager/root_device.conf"):
     ROOT_POINTER = ROOT_POINTER.split("\n")[0]
     ROOT_POINTER = systemd_boot_manager.get_key(ROOT_POINTER, SETTINGS["key"],
                                                 verbose=VERBOSE)
-    print(ROOT_POINTER)
     if SETTINGS["key"].lower() != "path":
         ROOT_POINTER = f"{ SETTINGS['key'].upper() }={ ROOT_POINTER }"
 elif os.path.exists("/etc/systemd-boot-manager/UUID.conf"):
