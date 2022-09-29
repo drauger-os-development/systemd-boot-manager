@@ -765,7 +765,7 @@ else:
 
             # make loader file
             if not systemd:
-                with open(CLEAN_DIR + each[2] + ".conf", "w") as file:
+                with open(CLEAN_DIR + each[2] + ".conf", "w+") as file:
                     file.write(f"title {each[1]}\n")
                     if grub is None:
                         # This SHOULD be Windows. An OS like MacOS or a Linux distro using

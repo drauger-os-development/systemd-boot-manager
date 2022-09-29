@@ -418,18 +418,22 @@ def check(verbose):
         if os.path.isfile(sdbm.DEFAULTS_FILE):
             report["DEFAULT BOOTLOADER ENTRY"] = sdbm.check_default_entry(verbose=verbose)
         # get key for root parition
-        with open(f"/boot/efi/loader/entries/{ sdbm.DISTRO }.conf", "r") as file:
-            output = file.read().split("\n")
-        for each in output:
-            if "options" in each:
-                output = each
-                break
-        output = output.split(" ")
-        for each in output:
-            if "root" in each:
-                output = each
-                break
-        output = output.split("=")[-1]
+        try:
+            with open(f"/boot/efi/loader/entries/{ sdbm.DISTRO }.conf", "r") as file:
+                output = file.read().split("\n")
+            for each in output:
+                if "options" in each:
+                    output = each
+                    break
+            output = output.split(" ")
+            for each in output:
+                if "root" in each:
+                    output = each
+                    break
+            output = output.split("=")[-1]
+        except FileNotFoundError:
+            # try to ensure a "False" outcome on the next command
+            output = None
         # compare to expected key
         report["KEYS"] = (output == keys[keys["KEY"]])
     else:
