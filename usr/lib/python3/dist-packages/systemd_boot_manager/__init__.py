@@ -45,13 +45,31 @@ DEFAULTS_FILE = CONFIG_DIR + "/default_entry.conf"
 UUID_FILE = CONFIG_DIR + "/UUID.conf"
 ROOT_DEVICE_FILE = CONFIG_DIR + "/root_device.conf"
 
+DISTRO = distro.name().replace(" ", "_")
+
+BOOT_DIR = "/boot/"
+EFI_DIR = BOOT_DIR + "efi"
+SD_LOADER_DIR = EFI_DIR + "/loader"
+CLEAN_DIR = SD_LOADER_DIR + "/entries/"
+CONF_FILE = [CLEAN_DIR + DISTRO, ".conf"]
 
 # Default Flags
 ROOT_FLAGS = "quiet splash"
 RECOVERY_FLAGS = "ro recovery nomodeset"
 
 
-DISTRO = distro.name().replace(" ", "_")
+def get_conf_file_contents(root_pointer: str, boot_args: str, state=None):
+    """Get conf file contents"""
+    contents = ["title  " + DISTRO,
+                "linux   /" + DISTRO + "/vmlinuz",
+                "initrd  /" + DISTRO + "/initrd.img",
+                "options root=" + root_pointer + " " + boot_args]
+    # this is a bit verbose, but None evaluates to False, so we need to be careful
+    if state is True:
+        return contents
+    elif state is False:
+        return tuple(contents)
+    return "\n".join(contents)
 
 
 def eprint(*args, **kwargs):
@@ -364,3 +382,102 @@ def get_UUID(verbose, uuid="partuuid"):
     uuid = get_key(part, uuid, verbose)
     # we get our key
     return uuid
+
+
+def generate_loader_entry(boot_args: str, root_pointer: str,
+                          kernel="latest"):
+    """Generate a given bootloader entry"""
+    if kernel.lower() == "latest":
+        with open("".join(CONF_FILE), "w+") as output:
+            output.write(get_conf_file_contents(root_pointer, boot_args))
+    else:
+        contents = get_conf_file_contents(root_pointer, boot_args,
+                                              state=True)
+        with open(("-" + kernel).join(CONF_FILE), "w+") as output:
+            line = 0
+            for each in contents:
+                if line == 0:
+                    output.write(each + " " + kernel + "\n")
+                elif line in (1, 2):
+                    output.write(each + "-" + kernel + "\n")
+                else:
+                    output.write(each + " " + boot_args)
+                line += 1
+
+
+def generate_recovery_loader_entry(boot_args: str, root_pointer: str,
+                                   kernel="latest"):
+    """Generate a given recovery bootloader entry"""
+    contents = get_conf_file_contents(root_pointer, boot_args,
+                                              state=True)
+
+    if kernel.lower() == "latest":
+        with open("_Recovery".join(CONF_FILE), "w+") as output:
+            for each in enumerate(contents):
+                if each[0] == 0:
+                    output.write(contents[each[0]] + " Recovery")
+                elif each[0] == len(contents) - 1:
+                    output.write(contents[each[0]])
+                else:
+                    output.write(contents[each[0]])
+                output.write("\n")
+    else:
+        with open(("-" + kernel + "_Recovery").join(CONF_FILE),
+                  "w+") as output:
+            line = 0
+            for each in contents:
+                if line == 0:
+                    output.write(each + " " + kernel + " Recovery\n")
+                elif line in (1, 2):
+                    output.write(each + "-" + kernel + "\n")
+                else:
+                    output.write(each)
+                line += 1
+
+
+def get_root_pointer(VERBOSE):
+    """Get root pointer"""
+    SETTINGS = get_settings(VERBOSE)
+    if os.path.exists("/etc/systemd-boot-manager/root_device.conf"):
+        # this is the easiest solution for the user, but takes more processing for us
+        with open("/etc/systemd-boot-manager/root_device.conf", "r") as file:
+            ROOT_POINTER = file.read()
+        ROOT_POINTER = ROOT_POINTER.split("\n")[0]
+        ROOT_POINTER = get_key(ROOT_POINTER, SETTINGS["key"], verbose=VERBOSE)
+        if SETTINGS["key"].lower() != "path":
+            ROOT_POINTER = f"{ SETTINGS['key'].upper() }={ ROOT_POINTER }"
+    elif os.path.exists("/etc/systemd-boot-manager/UUID.conf"):
+        # this takes less processing from us, but we have to figure out if this is a UUID or PARTUUID
+        with open("/etc/systemd-boot-manager/UUID.conf", "r") as file:
+            ROOT_POINTER = file.read()
+        ROOT_POINTER = ROOT_POINTER.split("\n")[0]
+        uuids = json.loads(subprocess.check_output(["lsblk", "--json",
+                                                    "--output", "path,uuid,partuuid,label"]))
+        uuids = uuids["blockdevices"]
+        for each in uuids:
+            if ROOT_POINTER == each["uuid"]:
+                ROOT_POINTER = f"UUID={ ROOT_POINTER }"
+                break
+            elif ROOT_POINTER == each["partuuid"]:
+                ROOT_POINTER = f"PARTUUID={ ROOT_POINTER }"
+                break
+            elif ROOT_POINTER == each["label"]:
+                ROOT_POINTER = f"LABEL={ ROOT_POINTER }"
+                break
+    else:
+        # this entire block exists to improve stability and resliancy. In case one of the 2 files we looked for perviously don't exist, we still have other options.
+        eprint(WARNING + "Could not find settings files that point to root partition. Will attempt to infer..." + CLEAR)
+        devices = json.loads(subprocess.check_output(["lsblk", "--json",
+                                                    "--output",
+                                                    "mountpoint,partuuid"]))
+        devices = devices["blockdevices"]
+        root = ""
+        for each in devices:
+            if each["mountpoint"] == "/":
+                root = each["partuuid"]
+                break
+        if root == "":
+            eprint(ERROR + "Could not infer root parition." + CLEAR)
+            sys.exit(2)
+        ROOT_POINTER = f"PARTUUID={ root }"
+    return ROOT_POINTER

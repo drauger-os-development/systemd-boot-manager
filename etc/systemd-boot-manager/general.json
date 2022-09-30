@@ -2,6 +2,6 @@
     "no-var": false,
     "standard_boot_args": "quiet splash",
     "recovery_args": "ro recovery nomodeset",
-    "dual-boot": true,
+    "dual-boot": false,
     "key": "uuid"
 }

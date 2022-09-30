@@ -489,6 +489,12 @@ def repair(verbose):
     print(sdbm.BLUE + "WRITING SETTINGS TO DISK" + sdbm.CLEAR)
     generate_settings(path, default_entry=default_entry, verbose=verbose)
     sdbm.check_loader(verbose=verbose)
+    if not os.path.exists("".join(sdbm.CONF_FILE)):
+        settings = sdbm.get_settings(verbose)
+        sdbm.generate_loader_entry(settings["standard_boot_args"],
+                                   sdbm.get_root_pointer(verbose))
+        sdbm.generate_recovery_loader_entry(settings["standard_boot_args"],
+                                            sdbm.get_root_pointer(verbose))
     print("\n")
     check(verbose)
 

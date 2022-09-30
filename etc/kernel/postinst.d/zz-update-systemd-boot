@@ -160,67 +160,14 @@ if len(sys.argv) > 1:
 NEEDED_FILES = ["config", "initrd.img", "System.map", "vmlinuz"]
 
 # Important Dirs/Files
-BOOT_DIR = "/boot/"
-EFI_DIR = BOOT_DIR + "efi"
-SD_LOADER_DIR = EFI_DIR + "/loader"
-CLEAN_DIR = SD_LOADER_DIR + "/entries/"
-LOADER_DIR = EFI_DIR + "/" + systemd_boot_manager.DISTRO + "/"
-CONF_FILE = [CLEAN_DIR + systemd_boot_manager.DISTRO, ".conf"]
+LOADER_DIR = systemd_boot_manager.EFI_DIR + "/" + systemd_boot_manager.DISTRO + "/"
 
 
 # System Settings
 SETTINGS = systemd_boot_manager.get_settings(VERBOSE)
 
-# Default Loader Conf File
-# We have to edit this in several places, multiple different times.
-# Having the default file as a list like this will make that faster
-if os.path.exists("/etc/systemd-boot-manager/root_device.conf"):
-    # this is the easiest solution for the user, but takes more processing for us
-    with open("/etc/systemd-boot-manager/root_device.conf", "r") as file:
-         ROOT_POINTER = file.read()
-    ROOT_POINTER = ROOT_POINTER.split("\n")[0]
-    ROOT_POINTER = systemd_boot_manager.get_key(ROOT_POINTER, SETTINGS["key"],
-                                                verbose=VERBOSE)
-    if SETTINGS["key"].lower() != "path":
-        ROOT_POINTER = f"{ SETTINGS['key'].upper() }={ ROOT_POINTER }"
-elif os.path.exists("/etc/systemd-boot-manager/UUID.conf"):
-    # this takes less processing from us, but we have to figure out if this is a UUID or PARTUUID
-    with open("/etc/systemd-boot-manager/UUID.conf", "r") as file:
-        ROOT_POINTER = file.read()
-    ROOT_POINTER = ROOT_POINTER.split("\n")[0]
-    uuids = json.loads(subprocess.check_output(["lsblk", "--json",
-                                                "--output", "path,uuid,partuuid,label"]))
-    uuids = uuids["blockdevices"]
-    for each in uuids:
-        if ROOT_POINTER == each["uuid"]:
-            ROOT_POINTER = f"UUID={ ROOT_POINTER }"
-            break
-        elif ROOT_POINTER == each["partuuid"]:
-            ROOT_POINTER = f"PARTUUID={ ROOT_POINTER }"
-            break
-        elif ROOT_POINTER == each["label"]:
-            ROOT_POINTER = f"LABEL={ ROOT_POINTER }"
-            break
-else:
-    # this entire block exists to improve stability and resliancy. In case one of the 2 files we looked for perviously don't exist, we still have other options.
-    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + "Could not find settings files that point to root partition. Will attempt to infer..." + systemd_boot_manager.CLEAR)
-    devices = json.loads(subprocess.check_output(["lsblk", "--json",
-                                                  "--output",
-                                                  "mountpoint,partuuid"]))
-    devices = devices["blockdevices"]
-    root = ""
-    for each in devices:
-        if each["mountpoint"] == "/":
-            root = each["partuuid"]
-            break
-    if root == "":
-        systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Could not infer root parition." + systemd_boot_manager.CLEAR)
-        sys.exit(2)
-    ROOT_POINTER = f"PARTUUID={ root }"
-CONF_FILE_CONTENTS = ["title  " + systemd_boot_manager.DISTRO,
-                      "linux   /" + systemd_boot_manager.DISTRO + "/vmlinuz",
-                      "initrd  /" + systemd_boot_manager.DISTRO + "/initrd.img",
-                      "options root=" + ROOT_POINTER]
+ROOT_POINTER = systemd_boot_manager.get_root_pointer(VERBOSE)
+
 
 
 def check_for_files(files):
@@ -261,7 +208,7 @@ def error(output):
 
 def get_esp_part_used():
     """Get amount of ESP partition used"""
-    used = subprocess.check_output(["du", "-bs", EFI_DIR]).decode()
+    used = subprocess.check_output(["du", "-bs", systemd_boot_manager.EFI_DIR]).decode()
     return int(used.split("\t")[0])
 
 
@@ -322,7 +269,7 @@ for each in PARTS:
     for each1 in each["children"]:
         if "mountpoint" not in each1:
             continue
-        if each1["mountpoint"] == EFI_DIR:
+        if each1["mountpoint"] == systemd_boot_manager.EFI_DIR:
             ESP_SIZE = each1["size"]
             ESP_UUID = each1["uuid"] # this will be helpful with handling dual-boot
             break
@@ -333,7 +280,7 @@ for each in PARTS:
 del each, PARTS
 
 # Get our kernels
-KERNELS = os.listdir(BOOT_DIR)
+KERNELS = os.listdir(systemd_boot_manager.BOOT_DIR)
 
 # Filter down to just the Kernel Images
 for each in range(len(KERNELS) - 1, -1, -1):
@@ -344,7 +291,7 @@ for each in range(len(KERNELS) - 1, -1, -1):
         del KERNELS[each]
     else:
         # These are kernel images. We need to make this their full file path.
-        KERNELS[each] = BOOT_DIR + KERNELS[each]
+        KERNELS[each] = systemd_boot_manager.BOOT_DIR + KERNELS[each]
 
 # Check to make sure we have kernels to work with
 if len(KERNELS) < 1:
@@ -354,11 +301,11 @@ if len(KERNELS) < 1:
 # Perform a nuclear clean to ensure everything is always in perfect sync.
 # We need to make sure we have some error catching here. Hence all the try/except blocks
 try:
-    DEATH_ROW = os.listdir(CLEAN_DIR)
+    DEATH_ROW = os.listdir(systemd_boot_manager.CLEAN_DIR)
     for each in DEATH_ROW:
         if each[-5:] == ".conf":
             try:
-                os.remove(CLEAN_DIR + each)
+                os.remove(systemd_boot_manager.CLEAN_DIR + each)
             except FileNotFoundError:
                 pass
             except PermissionError:
@@ -411,7 +358,7 @@ print(systemd_boot_manager.NAME + "\t" + systemd_boot_manager.GREEN + LATEST + s
 # Otherwise we can end up with a FileNotFoundError
 NEEDED_FILES1 = []
 for FILE in NEEDED_FILES:
-    NEEDED_FILES1.append(BOOT_DIR + FILE + "-" + LATEST)
+    NEEDED_FILES1.append(systemd_boot_manager.BOOT_DIR + FILE + "-" + LATEST)
 if check_for_files(NEEDED_FILES1):
     # We know the files we need exist. Copy them.
     for each in enumerate(NEEDED_FILES1):
@@ -438,9 +385,9 @@ else:
     sys.exit()
 
 # Make sure directory structure is good
-if not os.path.exists(CLEAN_DIR):
+if not os.path.exists(systemd_boot_manager.CLEAN_DIR):
     directory = ""
-    for each in CLEAN_DIR.split("/"):
+    for each in systemd_boot_manager.CLEAN_DIR.split("/"):
         if directory == "/":
             directory = directory + each
         else:
@@ -451,17 +398,10 @@ if not os.path.exists(CLEAN_DIR):
             pass
 
 # Generate Config Files
-with open("".join(CONF_FILE), "w+") as output:
-    output.write("\n".join(CONF_FILE_CONTENTS) + " " + SETTINGS["standard_boot_args"])
-with open("_Recovery".join(CONF_FILE), "w+") as output:
-    for each in enumerate(CONF_FILE_CONTENTS):
-        if each[0] == 0:
-            output.write(CONF_FILE_CONTENTS[each[0]] + " Recovery")
-        elif each[0] == len(CONF_FILE_CONTENTS) - 1:
-            output.write(CONF_FILE_CONTENTS[each[0]] + " " + SETTINGS["recovery_args"])
-        else:
-            output.write(CONF_FILE_CONTENTS[each[0]])
-        output.write("\n")
+systemd_boot_manager.generate_loader_entry(SETTINGS["standard_boot_args"],
+                                           ROOT_POINTER)
+systemd_boot_manager.generate_recovery_loader_entry(SETTINGS["recovery_args"],
+                                                    ROOT_POINTER)
 
 # check loader file
 systemd_boot_manager.check_loader()
@@ -482,8 +422,8 @@ if len(KERNELS) >= 1:
         for FILE in NEEDED_FILES:
             try:
                 if VERBOSE:
-                    print(BOOT_DIR + FILE + "-" + VERSION + " -> " + LOADER_DIR + FILE + "-" + VERSION)
-                shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
+                    print(systemd_boot_manager.BOOT_DIR + FILE + "-" + VERSION + " -> " + LOADER_DIR + FILE + "-" + VERSION)
+                shutil.copyfile(systemd_boot_manager.BOOT_DIR + FILE + "-" + VERSION,
                                 LOADER_DIR + FILE + "-" + VERSION)
             except FileNotFoundError:
                 warning("SOME FILE THAT IS NEEDED DOES NOT EXIST.")
@@ -501,35 +441,20 @@ if len(KERNELS) >= 1:
                 sys.exit()
             except FileExistsError:
                 os.remove(LOADER_DIR + FILE)
-                shutil.copyfile(BOOT_DIR + FILE + "-" + VERSION,
+                shutil.copyfile(systemd_boot_manager.BOOT_DIR + FILE + "-" + VERSION,
                                 LOADER_DIR + FILE + "-" + VERSION)
             except PermissionError:
                 systemd_boot_manager.eprint(systemd_boot_manager.ERROR, end="")
                 systemd_boot_manager.eprint("CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?", end="")
                 systemd_boot_manager.eprint(systemd_boot_manager.CLEAR)
                 failure(2)
-        with open(("-" + VERSION).join(CONF_FILE), "w+") as output:
-            line = 0
-            for each in CONF_FILE_CONTENTS:
-                if line == 0:
-                    output.write(each + " " + VERSION + "\n")
-                elif line in (1, 2):
-                    output.write(each + "-" + VERSION + "\n")
-                else:
-                    output.write(each + " " + SETTINGS["standard_boot_args"])
-                line += 1
+        systemd_boot_manager.generate_loader_entry(SETTINGS["standard_boot_args"],
+                                                   ROOT_POINTER,
+                                                   kernel=VERSION)
         # Also make sure they have Legacy recovery. Cause it can be a life saver.
-        with open(("-" + VERSION + "_Recovery").join(CONF_FILE),
-                  "w+") as output:
-            line = 0
-            for each in CONF_FILE_CONTENTS:
-                if line == 0:
-                    output.write(each + " " + VERSION + " Recovery\n")
-                elif line in (1, 2):
-                    output.write(each + "-" + VERSION + "\n")
-                else:
-                    output.write(each + " " + SETTINGS["recovery_args"])
-                line += 1
+        systemd_boot_manager.generate_recovery_loader_entry(SETTINGS["recovery_args"],
+                                                            ROOT_POINTER,
+                                                            kernel=VERSION)
 
 # Finally, we are done! Woot!
 # ... With the Kernels ...
@@ -635,16 +560,16 @@ else:
                 # copy over Windows files as needed
                 try:
                     shutil.copytree(mountpoint + "/EFI/Microsoft",
-                                    EFI_DIR + "/EFI/Microsoft")
+                                    systemd_boot_manager.EFI_DIR + "/EFI/Microsoft")
                 except FileExistsError:
                     # Windows is already set up, delete and reset up in case it's old files
-                    shutil.rmtree(EFI_DIR + "/EFI/Microsoft")
+                    shutil.rmtree(systemd_boot_manager.EFI_DIR + "/EFI/Microsoft")
                     shutil.copytree(mountpoint + "/EFI/Microsoft",
-                                    EFI_DIR + "/EFI/Microsoft")
+                                    systemd_boot_manager.EFI_DIR + "/EFI/Microsoft")
 
             else:
                 try:
-                    os.mkdir(EFI_DIR + "/EFI/" + each[2])
+                    os.mkdir(systemd_boot_manager.EFI_DIR + "/EFI/" + each[2])
                 except FileExistsError:
                     pass
                 # read OS FSTAB
@@ -697,7 +622,7 @@ else:
                     del dirs[dirs.index("loader")]
                     for each in dirs:
                         shutil.copytree(mountpoint + "/" + each,
-                                        EFI_DIR + "/" + each)
+                                        systemd_boot_manager.EFI_DIR + "/" + each)
                     dirs = os.listdir(mountpoint + "/loader/entries")
                     for each1 in dirs:
                         count = 0
@@ -708,28 +633,28 @@ else:
                         # 3: prevent duplicate systemd-boot entries
                         while True:
                             if count == 0:
-                                if not os.path.exists(CLEAN_DIR + each1):
+                                if not os.path.exists(systemd_boot_manager.CLEAN_DIR + each1):
                                     shutil.copy(mountpoint + "/loader/entries/" + each1,
-                                                CLEAN_DIR + each1)
+                                                systemd_boot_manager.CLEAN_DIR + each1)
                                     break
                                 with open(mountpoint + "/loader/entries/" + each1,
                                         "r") as file:
                                     contents1 = file.read()
-                                with open(CLEAN_DIR + each1, "r") as file:
+                                with open(systemd_boot_manager.CLEAN_DIR + each1, "r") as file:
                                     contents2 = file.read()
                                 if contents1 == contents2:
                                     # The files match, skip
                                     break
                             else:
                                 name = f"-{count}.".join(each1.split("."))
-                                if not os.path.exists(CLEAN_DIR + name):
+                                if not os.path.exists(systemd_boot_manager.CLEAN_DIR + name):
                                     shutil.copy(mountpoint + "/loader/entries/" + each1,
-                                                CLEAN_DIR + name)
+                                                systemd_boot_manager.CLEAN_DIR + name)
                                     break
                                 with open(mountpoint + "/loader/entries/" + each1,
                                         "r") as file:
                                     contents1 = file.read()
-                                with open(CLEAN_DIR + name, "r") as file:
+                                with open(systemd_boot_manager.CLEAN_DIR + name, "r") as file:
                                     contents2 = file.read()
                                 if contents1 == contents2:
                                     # The files match, skip
@@ -753,7 +678,7 @@ else:
                         if grub is not None:
                             count = 0
                             src = mountpoint + "/EFI/" + each1
-                            dest = EFI_DIR + "/EFI/" + each1
+                            dest = systemd_boot_manager.EFI_DIR + "/EFI/" + each1
                             try:
                                 shutil.copytree(src, dest)
                             except FileExistsError:
@@ -765,7 +690,7 @@ else:
 
             # make loader file
             if not systemd:
-                with open(CLEAN_DIR + each[2] + ".conf", "w+") as file:
+                with open(systemd_boot_manager.CLEAN_DIR + each[2] + ".conf", "w+") as file:
                     file.write(f"title {each[1]}\n")
                     if grub is None:
                         # This SHOULD be Windows. An OS like MacOS or a Linux distro using
