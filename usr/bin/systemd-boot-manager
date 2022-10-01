@@ -33,7 +33,7 @@ import systemd_boot_manager as sdbm
 
 # Set up
 UUID_FILE = sdbm.CONFIG_DIR + "/root_device.conf"
-VERSION = "0.5.3-alpha5"
+VERSION = "0.5.5-alpha5"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config
@@ -127,7 +127,10 @@ def enforce_default_entry_enabled(output="text"):
                                           "systemd-boot-manager"]).decode()
     except subprocess.CalledProcessError as e:
         status = e.stdout.decode()
-    status = status.split("\n")[1].split("; ")[1]
+    try:
+        status = status.split("\n")[1].split("; ")[1]
+    except IndexError:
+        status = "disabled"
     if output == "bool":
         if status.lower() == "enabled":
             return True
