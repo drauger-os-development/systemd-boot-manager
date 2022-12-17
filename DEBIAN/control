@@ -1,5 +1,5 @@
 Package: systemd-boot-manager
-Version: 0.5.5-alpha5
+Version: 0.5.6-alpha5
 Maintainer: Thomas Castleman <contact@draugeros.org>
 Homepage: https://github.com/drauger-os-development/systemd-boot-manager
 Section: admin

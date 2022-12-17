@@ -24,9 +24,9 @@
 """Library for systemd-boot-manager"""
 import os
 import sys
-import subprocess
-import distro
+import subprocess as sp
 import json
+import distro
 
 
 GREEN = "\033[92m"
@@ -67,7 +67,7 @@ def get_conf_file_contents(root_pointer: str, boot_args: str, state=None):
     # this is a bit verbose, but None evaluates to False, so we need to be careful
     if state is True:
         return contents
-    elif state is False:
+    if state is False:
         return tuple(contents)
     return "\n".join(contents)
 
@@ -126,7 +126,7 @@ def get_boot_entries(verbose=False):
     """Get bootloader entries"""
     if verbose:
         print("Getting boot entry list . . .")
-    entries = subprocess.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
+    entries = sp.check_output(["bootctl", "list", "--no-pager"]).decode().split("\n")
     output = {}
     name = ""
     if verbose:
@@ -165,8 +165,8 @@ def set_as_default_entry(entry, edit_file=True, verbose=False):
             if edit_file:
                 update_defaults_file(entry)
             try:
-                subprocess.check_call(["bootctl", "set-default", entry])
-            except subprocess.CalledProcessError as err:
+                sp.check_call(["bootctl", "set-default", entry])
+            except sp.CalledProcessError as err:
                 eprint(ERROR + "CANNOT SET INTENDED DEFAULT" + CLEAR)
                 eprint("Error was:")
                 eprint(err.output)
@@ -198,7 +198,7 @@ def check_default_entry(verbose=False):
 
 def get_os_prober():
     """Provide the output of `os-prober` in a Python native format"""
-    output = subprocess.check_output(["os-prober"]).decode()
+    output = sp.check_output(["os-prober"]).decode()
     output = output.split("\n")
     for each in enumerate(output):
         output[each[0]] = output[each[0]].split(":")
@@ -264,7 +264,7 @@ def get_key(device, key_type="uuid", verbose=False):
         raise FileNotFoundError(f"'{ device }: path not recognized'")
     if verbose:
         print(f"Getting { key_type } for { device }...")
-    output = json.loads(subprocess.check_output(["lsblk", "--json",
+    output = json.loads(sp.check_output(["lsblk", "--json",
                                                  "--output",
                                                  f"path,{ key_type }",
                                                  device]).decode())
@@ -277,10 +277,10 @@ def get_key(device, key_type="uuid", verbose=False):
 def get_devices():
     """Get devices from LSBLK"""
     try:
-        devices = json.loads(subprocess.check_output(["lsblk", "--output",
+        devices = json.loads(sp.check_output(["lsblk", "--output",
                                                       "PATH,TYPE,MOUNTPOINT,PARTUUID",
                                                       "--json"]).decode().replace("I", "i"))
-    except subprocess.CalledProcessError as err:
+    except sp.CalledProcessError as err:
         eprint(ERROR + "CANNOT GET ROOT PARTITION UUID. LSBLK FAILED." + CLEAR)
         eprint("The error was: ")
         eprint(err.output)
@@ -306,7 +306,7 @@ def get_root_partition(verbose):
 
 def is_root():
     """Check if we have root"""
-    return (os.geteuid() == 0)
+    return os.geteuid() == 0
 
 
 def get_settings(verbose=False):
@@ -343,10 +343,7 @@ def set_settings(key, value, verbose=False):
     settings = get_settings(verbose=verbose)
     if key.lower() in settings.keys():
         if key.lower() in ("no-var", "dual-boot"):
-            if str(value) in ("1", "True", "enable", "on"):
-                value = True
-            else:
-                value = False
+            value = bool(str(value) in ("1", "True", "enable", "on", True))
         if key.lower() == "key":
             if value.lower() not in ("partuuid", "uuid", "path", "label"):
                 raise ValueError(f"{ value }: Not a valid value for keys. Must be one of 'partuuid', 'uuid', 'path', 'label'")
@@ -369,7 +366,7 @@ def check_uuid(verbose=False):
     uuid_generated = get_UUID(verbose)
     if verbose:
         print("Comparing UUID file to UUID in memory . . .")
-    return (uuid_stored == uuid_generated)
+    return uuid_stored == uuid_generated
 
 
 def get_UUID(verbose, uuid="partuuid"):
@@ -451,23 +448,36 @@ def get_root_pointer(VERBOSE):
         with open("/etc/systemd-boot-manager/UUID.conf", "r") as file:
             ROOT_POINTER = file.read()
         ROOT_POINTER = ROOT_POINTER.split("\n")[0]
-        uuids = json.loads(subprocess.check_output(["lsblk", "--json",
-                                                    "--output", "path,uuid,partuuid,label"]))
+        try:
+            uuids = json.loads(sp.check_output(["lsblk", "--json",
+                                                "--output",
+                                                "path,uuid,partuuid,label"]))
+        except sp.CalledProcessError:
+            try:
+                uuids = json.loads(sp.check_output(["lsblk", "--json",
+                                                    "--output",
+                                                    "path,uuid,partuuid"]))
+            except sp.CalledProcessError:
+                uuids = json.loads(sp.check_output(["lsblk", "--json",
+                                                    "--output",
+                                                    "path,uuid"]))
         uuids = uuids["blockdevices"]
         for each in uuids:
             if ROOT_POINTER == each["uuid"]:
                 ROOT_POINTER = f"UUID={ ROOT_POINTER }"
                 break
-            elif ROOT_POINTER == each["partuuid"]:
-                ROOT_POINTER = f"PARTUUID={ ROOT_POINTER }"
-                break
-            elif ROOT_POINTER == each["label"]:
-                ROOT_POINTER = f"LABEL={ ROOT_POINTER }"
-                break
+            if "partuuid" in each:
+                if ROOT_POINTER == each["partuuid"]:
+                    ROOT_POINTER = f"PARTUUID={ ROOT_POINTER }"
+                    break
+            if "label" in each:
+                if ROOT_POINTER == each["label"]:
+                    ROOT_POINTER = f"LABEL={ ROOT_POINTER }"
+                    break
     else:
         # this entire block exists to improve stability and resliancy. In case one of the 2 files we looked for perviously don't exist, we still have other options.
         eprint(WARNING + "Could not find settings files that point to root partition. Will attempt to infer..." + CLEAR)
-        devices = json.loads(subprocess.check_output(["lsblk", "--json",
+        devices = json.loads(sp.check_output(["lsblk", "--json",
                                                     "--output",
                                                     "mountpoint,partuuid"]))
         devices = devices["blockdevices"]
