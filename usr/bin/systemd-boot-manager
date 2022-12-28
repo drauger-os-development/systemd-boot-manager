@@ -33,7 +33,7 @@ import systemd_boot_manager as sdbm
 
 # Set up
 UUID_FILE = sdbm.CONFIG_DIR + "/root_device.conf"
-VERSION = "0.5.9-alpha5"
+VERSION = "0.6.0-alpha6"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config

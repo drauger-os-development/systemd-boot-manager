@@ -476,7 +476,7 @@ except subprocess.CalledProcessError:
     failure(2)
 
 # check if Compatibility Mode is Enabled
-if sdbm.get_settings(VERBOSE)["compat_mode"]:
+if SETTINGS["compat_mode"]:
     # Compatibility Mode is Enabled
     try:
         os.mkdir(sdbm.EFI_DIR + "/EFI/Microsoft")
@@ -554,7 +554,7 @@ else:
     mountpoint = "/tmp/sdm-mountpoint"
     if "dual-boot" not in SETTINGS:
         SETTINGS["dual-boot"] = True
-    if SETTINGS["dual-boot"] is True:
+    if SETTINGS["dual-boot"] and not SETTINGS["compat_mode"]:
         for each in other_oss:
             systemd = False
             grub = None
@@ -718,6 +718,10 @@ else:
                         file.write(f"linux {grub}")
                     # ending newline
                     file.write("\n")
+    elif SETTINGS["dual-boot"] and SETTINGS["compat_mode"]:
+        sdbm.eprint(f"{ sdbm.WARNING }Dual-boot and Compatibility Mode are both enabled. Only one may be enabled at a time.{sdbm.CLEAR}")
+        sdbm.eprint(f"{ sdbm.WARNING }Compatibility Mode will take priority and is treated as enabled.{sdbm.CLEAR}")
+        sdbm.eprint(f"{ sdbm.WARNING }Dual-boot will be treated as disabled.{sdbm.CLEAR}")
 
 clean_up()
 success("SYSTEMD-BOOT UPDATES COMPLETE!")
