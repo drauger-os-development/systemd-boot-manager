@@ -342,15 +342,19 @@ def set_settings(key, value, verbose=False):
     """Set a settings value"""
     settings = get_settings(verbose=verbose)
     if key.lower() in settings.keys():
-        if key.lower() in ("no-var", "dual-boot"):
-            value = bool(str(value) in ("1", "True", "enable", "on", True))
+        if key.lower() in ("no-var", "dual-boot", "compat_mode"):
+            value = bool(str(value) in ("1", "True", "enable", "on",
+                                        "enabled", True))
         if key.lower() == "key":
             if value.lower() not in ("partuuid", "uuid", "path", "label"):
                 raise ValueError(f"{ value }: Not a valid value for keys. Must be one of 'partuuid', 'uuid', 'path', 'label'")
             value = value.lower()
         settings[key.lower()] = value
-        with open("/etc/systemd-boot-manager/general.json", "w") as file:
-            json.dump(settings, file, indent=2)
+        try:
+            with open("/etc/systemd-boot-manager/general.json", "w+") as file:
+                json.dump(settings, file, indent=2)
+        except PermissionError:
+            eprint(ERROR + "You need to run this program as root to change settings." + CLEAR)
     else:
         raise ValueError(f"{ key }: Not a valid key.")
 

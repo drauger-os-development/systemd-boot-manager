@@ -33,28 +33,47 @@ import systemd_boot_manager as sdbm
 
 # Set up
 UUID_FILE = sdbm.CONFIG_DIR + "/root_device.conf"
-VERSION = "0.5.6-alpha5"
+VERSION = "0.5.9-alpha5"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config
+
     -c, --check                                          Check systemd-boot-manager settings.
+
+        --compat-mode=(enable|disable)                   Enable or disable compatibility mode. For stubborn UEFI
+                                                         systems that refuse to recognize systemd-boot.
+
     -e, --enable                                         Enable systemd-boot-manager.
+
         --enforce-default-entry=(enable|disable)         Make sure the default boot entry is set correctly
                                                          at every boot. Pass nothing to check status.
+
         --editor=(enable|disable)                        Enable or disable boot menu entry editor. Pass
                                                          nothing to check status.
+
     -d, --default [bootloader entry]                     Set as default bootloader entry.
+
         --disable                                        Disable systemd-boot-manager.
+
         --dual-boot=(enable|disable)                     Enable or disable dual-boot support within systemd-boot.
                                                          Pass nothing to check status.
+
     -h, --help                                           Print this help dialog and exit.
+
         --key=(uuid|partuuid|label|path)                 Set or check key in use.
+
     -l, --list                                           List all bootloader entries.
+
     -r, --repair                                         Repair systemd-boot-manager settings and systemd-boot.
+
     -s, --show-settings                                  Show current settings.
+
     -t, --timeout [timeout in seconds]                   Set boot menu timeout in seconds.
+
     -u, --update                                         Update systemd-boot, default action.
+
     -v, --version                                        Print current version and exit.
+
     -V, --verbose                                        Print what is being done verbosely."""
 
 
@@ -194,29 +213,29 @@ def dual_boot(arg, verbose):
             print(sdbm.SUCCESS + "Dual-boot Support is Enabled." + sdbm.CLEAR)
         else:
             print(sdbm.STATUS + "Dual-boot Support is Disabled." + sdbm.CLEAR)
-    else:
-        arg = arg.lower()
-        if arg == "enable":
-            if settings["dual-boot"] is True:
-                print(sdbm.SUCCESS + "Dual-boot Support is already Enabled." + sdbm.CLEAR)
-            else:
-                settings["dual-boot"] = True
-                with open("/etc/systemd-boot-manager/general.json", "w") as file:
-                    json.dump(settings, file, indent=2)
-                print(sdbm.SUCCESS + "Dual-boot Support is Enabled." + sdbm.CLEAR)
-        elif arg == "disable":
-            # we do this because the ONLY time we want dual-boot to be enabled is when dual-boot
-            # is True. Any other time, we default to False.
-            if settings["dual-boot"] is not True:
-                print(sdbm.STATUS + "Dual-boot Support is already Disabled." + sdbm.CLEAR)
-            else:
-                settings["dual-boot"] = False
-                with open("/etc/systemd-boot-manager/general.json", "w") as file:
-                    json.dump(settings, file, indent=2)
-                print(sdbm.STATUS + "Dual-boot Support is Disabled." + sdbm.CLEAR)
+        return
+    arg = arg.lower()
+    if arg == "enable":
+        if settings["dual-boot"] is True:
+            print(sdbm.SUCCESS + "Dual-boot Support is already Enabled." + sdbm.CLEAR)
         else:
-            sdbm.eprint(sdbm.ERROR + f"'{arg}' not understood. Please use either 'enable' or 'disable'.")
-            sys.exit(1)
+            settings["dual-boot"] = True
+            with open("/etc/systemd-boot-manager/general.json", "w") as file:
+                json.dump(settings, file, indent=2)
+            print(sdbm.SUCCESS + "Dual-boot Support is Enabled." + sdbm.CLEAR)
+    elif arg == "disable":
+        # we do this because the ONLY time we want dual-boot to be enabled is when dual-boot
+        # is True. Any other time, we default to False.
+        if settings["dual-boot"] is not True:
+            print(sdbm.STATUS + "Dual-boot Support is already Disabled." + sdbm.CLEAR)
+        else:
+            settings["dual-boot"] = False
+            with open("/etc/systemd-boot-manager/general.json", "w") as file:
+                json.dump(settings, file, indent=2)
+            print(sdbm.STATUS + "Dual-boot Support is Disabled." + sdbm.CLEAR)
+    else:
+        sdbm.eprint(sdbm.ERROR + f"'{arg}' not understood. Please use either 'enable' or 'disable'.")
+        sys.exit(1)
 
 
 def update(verbose):
@@ -545,6 +564,25 @@ def set_disabled():
         file.write("")
 
 
+def compatibility_mode_controls(arg, verbose):
+    """Get/Set compatibility mode state"""
+    settings = sdbm.get_settings(verbose=verbose)
+    if arg == "":
+        if settings["compat_mode"]:
+            print(sdbm.SUCCESS + "Compatibility Mode is Enabled." + sdbm.CLEAR)
+        else:
+            print(sdbm.STATUS + "Compatibility Mode is Disabled." + sdbm.CLEAR)
+        return
+    arg = arg.lower()
+    sdbm.set_settings("compat_mode", arg, verbose)
+    if arg in ("1", "True", "enable", "on", "enabled", True):
+        print(sdbm.SUCCESS + "Compatibility Mode is Enabled." + sdbm.CLEAR)
+    else:
+        print(sdbm.SUCCESS + "Compatibility Mode is Disabled." + sdbm.CLEAR)
+
+
+
+
 # Handle flags on command line
 # get length of argv
 ARGC = len(sys.argv)
@@ -637,6 +675,9 @@ else:
         elif "--key" in sys.argv[POINT]:
             arg = sys.argv[POINT][6:]
             key_handler(arg, VERBOSE)
+        elif "--compat-mode" in sys.argv[POINT]:
+            arg = sys.argv[POINT][14:]
+            compatibility_mode_controls(arg, VERBOSE)
         else:
             sdbm.eprint(sdbm.ERROR + "Flag: " + sys.argv[1] + " Not understood." + sdbm.CLEAR)
             print(HELP)

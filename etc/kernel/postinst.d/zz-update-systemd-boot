@@ -29,7 +29,7 @@ import os
 import shutil
 import subprocess
 import json
-import systemd_boot_manager
+import systemd_boot_manager as sdbm
 
 
 class LooseVersion():
@@ -160,13 +160,13 @@ if len(sys.argv) > 1:
 NEEDED_FILES = ["config", "initrd.img", "System.map", "vmlinuz"]
 
 # Important Dirs/Files
-LOADER_DIR = systemd_boot_manager.EFI_DIR + "/" + systemd_boot_manager.DISTRO + "/"
+LOADER_DIR = sdbm.EFI_DIR + "/" + sdbm.DISTRO + "/"
 
 
 # System Settings
-SETTINGS = systemd_boot_manager.get_settings(VERBOSE)
+SETTINGS = sdbm.get_settings(VERBOSE)
 
-ROOT_POINTER = systemd_boot_manager.get_root_pointer(VERBOSE)
+ROOT_POINTER = sdbm.get_root_pointer(VERBOSE)
 
 
 
@@ -188,27 +188,27 @@ def clean_up():
 
 def failure(exit_code):
     """Consistent Failure output"""
-    systemd_boot_manager.eprint(systemd_boot_manager.NAME + "\t" + systemd_boot_manager.RED + "SYSTEMD-BOOT UPDATES FAILED!" + systemd_boot_manager.CLEAR)
+    sdbm.eprint(sdbm.NAME + "\t" + sdbm.RED + "SYSTEMD-BOOT UPDATES FAILED!" + sdbm.CLEAR)
     clean_up()
     sys.exit(exit_code)
 
 
 def warning(output):
-    systemd_boot_manager.eprint(systemd_boot_manager.WARNING + output + systemd_boot_manager.CLEAR)
+    sdbm.eprint(sdbm.WARNING + output + sdbm.CLEAR)
 
 def status(output):
-    print(systemd_boot_manager.STATUS + output + systemd_boot_manager.CLEAR)
+    print(sdbm.STATUS + output + sdbm.CLEAR)
 
 def success(output):
-    print(systemd_boot_manager.SUCCESS + output + systemd_boot_manager.CLEAR)
+    print(sdbm.SUCCESS + output + sdbm.CLEAR)
 
 def error(output):
-    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + output + systemd_boot_manager.CLEAR)
+    sdbm.eprint(sdbm.ERROR + output + sdbm.CLEAR)
 
 
 def get_esp_part_used():
     """Get amount of ESP partition used"""
-    used = subprocess.check_output(["du", "-bs", systemd_boot_manager.EFI_DIR]).decode()
+    used = subprocess.check_output(["du", "-bs", sdbm.EFI_DIR]).decode()
     return int(used.split("\t")[0])
 
 
@@ -245,12 +245,12 @@ if sys.version_info[0] == 2:
     error("Please run with Python 3 as Python 2 is End-of-Life.")
     sys.exit(2)
 
-if not systemd_boot_manager.is_enabled():
+if not sdbm.is_enabled():
     warning("systemd-boot-manager is disabled. Exiting without modifying anything.")
     status("You can re-enable systemd-boot-manager with `sudo update-systemd-boot --enable'")
     sys.exit(0)
 
-print(systemd_boot_manager.STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT" + systemd_boot_manager.CLEAR)
+print(sdbm.STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT" + sdbm.CLEAR)
 
 # Get size of /boot/efi partition
 PARTS = json.loads(subprocess.check_output(["lsblk", "--output",
@@ -269,7 +269,7 @@ for each in PARTS:
     for each1 in each["children"]:
         if "mountpoint" not in each1:
             continue
-        if each1["mountpoint"] == systemd_boot_manager.EFI_DIR:
+        if each1["mountpoint"] == sdbm.EFI_DIR:
             ESP_SIZE = each1["size"]
             ESP_UUID = each1["uuid"] # this will be helpful with handling dual-boot
             break
@@ -280,7 +280,7 @@ for each in PARTS:
 del each, PARTS
 
 # Get our kernels
-KERNELS = os.listdir(systemd_boot_manager.BOOT_DIR)
+KERNELS = os.listdir(sdbm.BOOT_DIR)
 
 # Filter down to just the Kernel Images
 for each in range(len(KERNELS) - 1, -1, -1):
@@ -291,7 +291,7 @@ for each in range(len(KERNELS) - 1, -1, -1):
         del KERNELS[each]
     else:
         # These are kernel images. We need to make this their full file path.
-        KERNELS[each] = systemd_boot_manager.BOOT_DIR + KERNELS[each]
+        KERNELS[each] = sdbm.BOOT_DIR + KERNELS[each]
 
 # Check to make sure we have kernels to work with
 if len(KERNELS) < 1:
@@ -301,11 +301,11 @@ if len(KERNELS) < 1:
 # Perform a nuclear clean to ensure everything is always in perfect sync.
 # We need to make sure we have some error catching here. Hence all the try/except blocks
 try:
-    DEATH_ROW = os.listdir(systemd_boot_manager.CLEAN_DIR)
+    DEATH_ROW = os.listdir(sdbm.CLEAN_DIR)
     for each in DEATH_ROW:
         if each[-5:] == ".conf":
             try:
-                os.remove(systemd_boot_manager.CLEAN_DIR + each)
+                os.remove(sdbm.CLEAN_DIR + each)
             except FileNotFoundError:
                 pass
             except PermissionError:
@@ -351,14 +351,14 @@ LATEST = KERNELS[-1]
 del KERNELS[-1]
 
 # Let the user know what kernel they will be booting with next time
-print(systemd_boot_manager.NAME + "\t" + systemd_boot_manager.GREEN + LATEST + systemd_boot_manager.CLEAR)
+print(sdbm.NAME + "\t" + sdbm.GREEN + LATEST + sdbm.CLEAR)
 
 # Time for the real work
 # We need to make sure the files we need ACTUALLY EXIST first
 # Otherwise we can end up with a FileNotFoundError
 NEEDED_FILES1 = []
 for FILE in NEEDED_FILES:
-    NEEDED_FILES1.append(systemd_boot_manager.BOOT_DIR + FILE + "-" + LATEST)
+    NEEDED_FILES1.append(sdbm.BOOT_DIR + FILE + "-" + LATEST)
 if check_for_files(NEEDED_FILES1):
     # We know the files we need exist. Copy them.
     for each in enumerate(NEEDED_FILES1):
@@ -385,9 +385,9 @@ else:
     sys.exit()
 
 # Make sure directory structure is good
-if not os.path.exists(systemd_boot_manager.CLEAN_DIR):
+if not os.path.exists(sdbm.CLEAN_DIR):
     directory = ""
-    for each in systemd_boot_manager.CLEAN_DIR.split("/"):
+    for each in sdbm.CLEAN_DIR.split("/"):
         if directory == "/":
             directory = directory + each
         else:
@@ -398,13 +398,13 @@ if not os.path.exists(systemd_boot_manager.CLEAN_DIR):
             pass
 
 # Generate Config Files
-systemd_boot_manager.generate_loader_entry(SETTINGS["standard_boot_args"],
+sdbm.generate_loader_entry(SETTINGS["standard_boot_args"],
                                            ROOT_POINTER)
-systemd_boot_manager.generate_recovery_loader_entry(SETTINGS["recovery_args"],
+sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"],
                                                     ROOT_POINTER)
 
 # check loader file
-systemd_boot_manager.check_loader()
+sdbm.check_loader()
 
 
 # Legacy Kernel Support
@@ -418,12 +418,12 @@ if len(KERNELS) >= 1:
         if REMAINING < LOW_SPACE_LIMIT:
             LOW_SPACE_BREAK = True
             break
-        print(systemd_boot_manager.NAME + "\t" + systemd_boot_manager.GREEN + VERSION + systemd_boot_manager.BLUE + "\t(LEGACY)" + systemd_boot_manager.CLEAR)
+        print(sdbm.NAME + "\t" + sdbm.GREEN + VERSION + sdbm.BLUE + "\t(LEGACY)" + sdbm.CLEAR)
         for FILE in NEEDED_FILES:
             try:
                 if VERBOSE:
-                    print(systemd_boot_manager.BOOT_DIR + FILE + "-" + VERSION + " -> " + LOADER_DIR + FILE + "-" + VERSION)
-                shutil.copyfile(systemd_boot_manager.BOOT_DIR + FILE + "-" + VERSION,
+                    print(sdbm.BOOT_DIR + FILE + "-" + VERSION + " -> " + LOADER_DIR + FILE + "-" + VERSION)
+                shutil.copyfile(sdbm.BOOT_DIR + FILE + "-" + VERSION,
                                 LOADER_DIR + FILE + "-" + VERSION)
             except FileNotFoundError:
                 warning("SOME FILE THAT IS NEEDED DOES NOT EXIST.")
@@ -441,18 +441,18 @@ if len(KERNELS) >= 1:
                 sys.exit()
             except FileExistsError:
                 os.remove(LOADER_DIR + FILE)
-                shutil.copyfile(systemd_boot_manager.BOOT_DIR + FILE + "-" + VERSION,
+                shutil.copyfile(sdbm.BOOT_DIR + FILE + "-" + VERSION,
                                 LOADER_DIR + FILE + "-" + VERSION)
             except PermissionError:
-                systemd_boot_manager.eprint(systemd_boot_manager.ERROR, end="")
-                systemd_boot_manager.eprint("CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?", end="")
-                systemd_boot_manager.eprint(systemd_boot_manager.CLEAR)
+                sdbm.eprint(sdbm.ERROR, end="")
+                sdbm.eprint("CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?", end="")
+                sdbm.eprint(sdbm.CLEAR)
                 failure(2)
-        systemd_boot_manager.generate_loader_entry(SETTINGS["standard_boot_args"],
+        sdbm.generate_loader_entry(SETTINGS["standard_boot_args"],
                                                    ROOT_POINTER,
                                                    kernel=VERSION)
         # Also make sure they have Legacy recovery. Cause it can be a life saver.
-        systemd_boot_manager.generate_recovery_loader_entry(SETTINGS["recovery_args"],
+        sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"],
                                                             ROOT_POINTER,
                                                             kernel=VERSION)
 
@@ -463,7 +463,7 @@ REMAINING = ESP_SIZE - get_esp_part_used()
 if REMAINING < 200000:
     error("NOT ENOUGH SPACE ON DRIVE TO UPDATE SYSTEMD-BOOT")
     failure(1)
-print(systemd_boot_manager.STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + systemd_boot_manager.CLEAR)
+print(sdbm.STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + sdbm.CLEAR)
 os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
 try:
     cmd = ["bootctl", "update", "--graceful"]
@@ -474,6 +474,22 @@ try:
 except subprocess.CalledProcessError:
     error("BOOTCTL HAS HAD AN ERROR!")
     failure(2)
+
+# check if Compatibility Mode is Enabled
+if sdbm.get_settings(VERBOSE)["compat_mode"]:
+    # Compatibility Mode is Enabled
+    try:
+        os.mkdir(sdbm.EFI_DIR + "/EFI/Microsoft")
+    except FileExistsError:
+        pass
+    try:
+        os.mkdir(sdbm.EFI_DIR + "/EFI/Microsoft/Boot")
+    except FileExistsError:
+        pass
+    shutil.copy(sdbm.EFI_DIR + "/EFI/systemd/systemd-bootx64.efi", sdbm.EFI_DIR + "/EFI/Microsoft/Boot/bootmgfw.efi")
+else:
+    if os.path.exists(sdbm.EFI_DIR + "/EFI/Microsoft"):
+        shutil.rmtree(sdbm.EFI_DIR + "/EFI/Microsoft")
 
 # Get default bootloader entry
 DEFAULT = subprocess.check_output(["bootctl", "list",
@@ -502,8 +518,8 @@ for each in ENTRIES:
 # Read Default.conf, find what default entry SHOULD be
 # We do this so that if this entry is lost after a CMOS clear, it can be restored.
 INTENDED_DEFAULT = "#"
-if os.path.isfile(systemd_boot_manager.DEFAULTS_FILE):
-    with open(systemd_boot_manager.DEFAULTS_FILE, "r") as conf:
+if os.path.isfile(sdbm.DEFAULTS_FILE):
+    with open(sdbm.DEFAULTS_FILE, "r") as conf:
         INTENDED_DEFAULT = conf.read().split()[0]
 
 # Check default entry, change if needed
@@ -523,7 +539,7 @@ if INTENDED_DEFAULT != "#":
 
         success("SUCCESSFULLY RESET DEFAULT BOOT ENTRY")
 
-other_oss = systemd_boot_manager.get_os_prober()
+other_oss = sdbm.get_os_prober()
 
 if LOW_SPACE_BREAK:
     warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS.")
@@ -544,7 +560,7 @@ else:
             grub = None
             if len(each) < 4:
                 continue
-            print(systemd_boot_manager.STATUS + f"CONFIGURING {each[1]}" + systemd_boot_manager.CLEAR)
+            print(sdbm.STATUS + f"CONFIGURING {each[1]}" + sdbm.CLEAR)
             if "@" in each[0]:
                 part = each[0].split("@")[0]
             else:
@@ -560,16 +576,16 @@ else:
                 # copy over Windows files as needed
                 try:
                     shutil.copytree(mountpoint + "/EFI/Microsoft",
-                                    systemd_boot_manager.EFI_DIR + "/EFI/Microsoft")
+                                    sdbm.EFI_DIR + "/EFI/Microsoft")
                 except FileExistsError:
                     # Windows is already set up, delete and reset up in case it's old files
-                    shutil.rmtree(systemd_boot_manager.EFI_DIR + "/EFI/Microsoft")
+                    shutil.rmtree(sdbm.EFI_DIR + "/EFI/Microsoft")
                     shutil.copytree(mountpoint + "/EFI/Microsoft",
-                                    systemd_boot_manager.EFI_DIR + "/EFI/Microsoft")
+                                    sdbm.EFI_DIR + "/EFI/Microsoft")
 
             else:
                 try:
-                    os.mkdir(systemd_boot_manager.EFI_DIR + "/EFI/" + each[2])
+                    os.mkdir(sdbm.EFI_DIR + "/EFI/" + each[2])
                 except FileExistsError:
                     pass
                 # read OS FSTAB
@@ -577,7 +593,7 @@ else:
                     with open(mountpoint + "/etc/fstab", "r") as file:
                         fstab = file.read().split("\n")
                 except FileNotFoundError:
-                    systemd_boot_manager.eprint(systemd_boot_manager.ERROR + "Thought Windows was Linux. Stopping setting up dual-boot now to prevent issues." + systemd_boot_manager.CLEAR)
+                    sdbm.eprint(sdbm.ERROR + "Thought Windows was Linux. Stopping setting up dual-boot now to prevent issues." + sdbm.CLEAR)
                     break
                 for each1 in fstab:
                     if len(each1) < 1:
@@ -622,7 +638,7 @@ else:
                     del dirs[dirs.index("loader")]
                     for each in dirs:
                         shutil.copytree(mountpoint + "/" + each,
-                                        systemd_boot_manager.EFI_DIR + "/" + each)
+                                        sdbm.EFI_DIR + "/" + each)
                     dirs = os.listdir(mountpoint + "/loader/entries")
                     for each1 in dirs:
                         count = 0
@@ -633,28 +649,28 @@ else:
                         # 3: prevent duplicate systemd-boot entries
                         while True:
                             if count == 0:
-                                if not os.path.exists(systemd_boot_manager.CLEAN_DIR + each1):
+                                if not os.path.exists(sdbm.CLEAN_DIR + each1):
                                     shutil.copy(mountpoint + "/loader/entries/" + each1,
-                                                systemd_boot_manager.CLEAN_DIR + each1)
+                                                sdbm.CLEAN_DIR + each1)
                                     break
                                 with open(mountpoint + "/loader/entries/" + each1,
                                         "r") as file:
                                     contents1 = file.read()
-                                with open(systemd_boot_manager.CLEAN_DIR + each1, "r") as file:
+                                with open(sdbm.CLEAN_DIR + each1, "r") as file:
                                     contents2 = file.read()
                                 if contents1 == contents2:
                                     # The files match, skip
                                     break
                             else:
                                 name = f"-{count}.".join(each1.split("."))
-                                if not os.path.exists(systemd_boot_manager.CLEAN_DIR + name):
+                                if not os.path.exists(sdbm.CLEAN_DIR + name):
                                     shutil.copy(mountpoint + "/loader/entries/" + each1,
-                                                systemd_boot_manager.CLEAN_DIR + name)
+                                                sdbm.CLEAN_DIR + name)
                                     break
                                 with open(mountpoint + "/loader/entries/" + each1,
                                         "r") as file:
                                     contents1 = file.read()
-                                with open(systemd_boot_manager.CLEAN_DIR + name, "r") as file:
+                                with open(sdbm.CLEAN_DIR + name, "r") as file:
                                     contents2 = file.read()
                                 if contents1 == contents2:
                                     # The files match, skip
@@ -678,7 +694,7 @@ else:
                         if grub is not None:
                             count = 0
                             src = mountpoint + "/EFI/" + each1
-                            dest = systemd_boot_manager.EFI_DIR + "/EFI/" + each1
+                            dest = sdbm.EFI_DIR + "/EFI/" + each1
                             try:
                                 shutil.copytree(src, dest)
                             except FileExistsError:
@@ -690,7 +706,7 @@ else:
 
             # make loader file
             if not systemd:
-                with open(systemd_boot_manager.CLEAN_DIR + each[2] + ".conf", "w+") as file:
+                with open(sdbm.CLEAN_DIR + each[2] + ".conf", "w+") as file:
                     file.write(f"title {each[1]}\n")
                     if grub is None:
                         # This SHOULD be Windows. An OS like MacOS or a Linux distro using
