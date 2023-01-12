@@ -314,7 +314,7 @@ def get_settings(verbose=False):
     try:
         if verbose:
             print("Attempting to read settings file...")
-        with open("/etc/systemd-boot-manager/general.json", "r") as file:
+        with open(f"{CONFIG_DIR}/general.json", "r") as file:
             if verbose:
                 print("Parsing settings file...")
             SETTINGS = json.load(file)

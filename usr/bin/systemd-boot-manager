@@ -567,14 +567,17 @@ def set_disabled():
 def compatibility_mode_controls(arg, verbose):
     """Get/Set compatibility mode state"""
     settings = sdbm.get_settings(verbose=verbose)
+    with open(f"{sdbm.CONFIG_DIR}/general.json", "r") as file:
+        settings_file = file.read()
     if arg == "":
-        if "compat_mode" in settings:
+        if "compat_mode" in settings_file and isinstance(settings["compat_mode"],
+                                                         bool):
             if settings["compat_mode"]:
                 print(sdbm.SUCCESS + "Compatibility Mode is Enabled." + sdbm.CLEAR)
             else:
                 print(sdbm.STATUS + "Compatibility Mode is Disabled." + sdbm.CLEAR)
         else:
-            sdbm.eprint(sdbm.WARNING + "Compatibility Mode not set. Defaulting to Disabled." + sdbm.CLEAR)
+            sdbm.eprint(sdbm.WARNING + "Compatibility Mode not properly set." + sdbm.CLEAR)
             answer = input("Would you like to set Compatibility Mode now and hide this warning in the future? [Y/n]: ").lower()
             if answer in ("y", "yes", "sure", "ok", "okay"):
                 while True:
@@ -589,7 +592,11 @@ def compatibility_mode_controls(arg, verbose):
                         break
                     else:
                         sdbm.eprint(sdbm.ERROR + f"'{answer}' is not an acceptable response." + sdbm.CLEAR)
-            print(sdbm.STATUS + "Compatibility Mode is Unset. Defaulting to Disabled." + sdbm.CLEAR)
+            else:
+                if settings["compat_mode"]:
+                    print(sdbm.STATUS + "Compatibility Mode is Behaving as: Enabled." + sdbm.CLEAR)
+                else:
+                    print(sdbm.STATUS + "Compatibility Mode is Behaving as: Disabled." + sdbm.CLEAR)
         return
     arg = arg.lower()
     sdbm.set_settings("compat_mode", arg, verbose)
