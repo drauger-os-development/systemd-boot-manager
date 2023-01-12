@@ -33,7 +33,7 @@ import systemd_boot_manager as sdbm
 
 # Set up
 UUID_FILE = sdbm.CONFIG_DIR + "/root_device.conf"
-VERSION = "0.6.0-alpha6"
+VERSION = "0.6.1-alpha6"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config
@@ -568,10 +568,28 @@ def compatibility_mode_controls(arg, verbose):
     """Get/Set compatibility mode state"""
     settings = sdbm.get_settings(verbose=verbose)
     if arg == "":
-        if settings["compat_mode"]:
-            print(sdbm.SUCCESS + "Compatibility Mode is Enabled." + sdbm.CLEAR)
+        if "compat_mode" in settings:
+            if settings["compat_mode"]:
+                print(sdbm.SUCCESS + "Compatibility Mode is Enabled." + sdbm.CLEAR)
+            else:
+                print(sdbm.STATUS + "Compatibility Mode is Disabled." + sdbm.CLEAR)
         else:
-            print(sdbm.STATUS + "Compatibility Mode is Disabled." + sdbm.CLEAR)
+            sdbm.eprint(sdbm.WARNING + "Compatibility Mode not set. Defaulting to Disabled." + sdbm.CLEAR)
+            answer = input("Would you like to set Compatibility Mode now and hide this warning in the future? [Y/n]: ").lower()
+            if answer in ("y", "yes", "sure", "ok", "okay"):
+                while True:
+                    answer = input("Would you like to set Compatibility Mode to Enabled or Disabled? [ENABLE/disable]: ").lower()
+                    if answer in ("enabled", "e", "on", "enable"):
+                        sdbm.set_settings("compat_mode", True, verbose)
+                        print(sdbm.SUCCESS + "Compatibility Mode is Enabled." + sdbm.CLEAR)
+                        break
+                    elif answer in ("disabled", "d", "off", "disable"):
+                        sdbm.set_settings("compat_mode", False, verbose)
+                        print(sdbm.SUCCESS + "Compatibility Mode is Disabled." + sdbm.CLEAR)
+                        break
+                    else:
+                        sdbm.eprint(sdbm.ERROR + f"'{answer}' is not an acceptable response." + sdbm.CLEAR)
+            print(sdbm.STATUS + "Compatibility Mode is Unset. Defaulting to Disabled." + sdbm.CLEAR)
         return
     arg = arg.lower()
     sdbm.set_settings("compat_mode", arg, verbose)

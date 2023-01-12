@@ -323,40 +323,42 @@ def get_settings(verbose=False):
         eprint(ERROR + "/etc/systemd-boot-manager/general.json is misformatted or missing. Falling back to internal defaults..." + CLEAR)
         SETTINGS = {
         "no-var": False,
-        "standard_boot_args": "quiet splash",
-        "recovery_args": "ro recovery nomodeset",
-        "dual-boot": True,
-        "key": "partuuid"
+        "standard_boot_args": ROOT_FLAGS,
+        "recovery_args": RECOVERY_FLAGS,
+        "dual-boot": False,
+        "key": "partuuid",
+        "compat_mode": False,
         }
     # make sure settings are valid
-    if "standard_boot_args" not in SETTINGS:
+    if (("standard_boot_args" not in SETTINGS) or (not isinstance(SETTINGS["standard_boot_args"], str))):
         SETTINGS["standard_boot_args"] = ROOT_FLAGS
-    if "recovery_args" not in SETTINGS:
+    if (("recovery_args" not in SETTINGS) or (not isinstance(SETTINGS["recovery_args"], str))):
         SETTINGS["recovery_args"] = RECOVERY_FLAGS
     if "key" not in SETTINGS:
         SETTINGS["key"] = "partuuid"
+    if "compat_mode" not in SETTINGS:
+        SETTINGS["compat_mode"] = False
+    if "dual-boot" not in SETTINGS:
+        SETTINGS["dual-boot"] = False
     return SETTINGS
 
 
 def set_settings(key, value, verbose=False):
     """Set a settings value"""
     settings = get_settings(verbose=verbose)
-    if key.lower() in settings.keys():
-        if key.lower() in ("no-var", "dual-boot", "compat_mode"):
-            value = bool(str(value) in ("1", "True", "enable", "on",
-                                        "enabled", True))
-        if key.lower() == "key":
-            if value.lower() not in ("partuuid", "uuid", "path", "label"):
-                raise ValueError(f"{ value }: Not a valid value for keys. Must be one of 'partuuid', 'uuid', 'path', 'label'")
-            value = value.lower()
-        settings[key.lower()] = value
-        try:
-            with open("/etc/systemd-boot-manager/general.json", "w+") as file:
-                json.dump(settings, file, indent=2)
-        except PermissionError:
-            eprint(ERROR + "You need to run this program as root to change settings." + CLEAR)
-    else:
-        raise ValueError(f"{ key }: Not a valid key.")
+    if key.lower() in ("no-var", "dual-boot", "compat_mode"):
+        value = bool(str(value) in ("1", "True", "enable", "on",
+                                    "enabled", True))
+    if key.lower() == "key":
+        if value.lower() not in ("partuuid", "uuid", "path", "label"):
+            raise ValueError(f"{ value }: Not a valid value for keys. Must be one of 'partuuid', 'uuid', 'path', 'label'")
+        value = value.lower()
+    settings[key.lower()] = value
+    try:
+        with open("/etc/systemd-boot-manager/general.json", "w+") as file:
+            json.dump(settings, file, indent=2)
+    except PermissionError:
+        eprint(ERROR + "You need to run this program as root to change settings." + CLEAR)
 
 
 def check_uuid(verbose=False):
