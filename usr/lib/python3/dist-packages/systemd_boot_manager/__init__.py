@@ -481,7 +481,7 @@ def get_root_pointer(VERBOSE):
                     ROOT_POINTER = f"LABEL={ ROOT_POINTER }"
                     break
     else:
-        # this entire block exists to improve stability and resliancy. In case one of the 2 files we looked for perviously don't exist, we still have other options.
+        # this entire block exists to improve stability and resliancy. In case one of the 2 files we looked for previously don't exist, we still have other options.
         eprint(WARNING + "Could not find settings files that point to root partition. Will attempt to infer..." + CLEAR)
         devices = json.loads(sp.check_output(["lsblk", "--json",
                                                     "--output",

@@ -24,12 +24,12 @@
 set -e
 case "$1" in
 	configure|update)
-		if [ -f /etc/systemd-boot-manager/UUID.conf ]; then
+		if [ ! -f /etc/systemd-boot-manager/UUID.conf ]; then
 			echo "Generating UUID configuration file"
 			root=$(lsblk --output NAME,MOUNTPOINT --paths --list | grep "/$" | awk '{print $1}')
-			echo "$(blkid -s PARTUUID -o value $root)" > /etc/systemd-boot-manager/UUID.conf
+			echo "$(blkid -s UUID -o value $root)" > /etc/systemd-boot-manager/UUID.conf
 		fi
-		if [ ! -f /etc/systemd-boot-manager/disable.flag ]; then
+		if [ -f /etc/systemd-boot-manager/disable.flag ]; then
 			rm /etc/systemd-boot-manager/disable.flag
 		fi
 		systemctl daemon-reload
