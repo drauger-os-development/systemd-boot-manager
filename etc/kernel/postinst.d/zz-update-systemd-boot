@@ -3,7 +3,7 @@
 #
 #  zz-update-systemd-boot
 #
-#  Copyright 2023 Thomas Castleman <batcastle@draugeros.org>
+#  Copyright 2024 Thomas Castleman <batcastle@draugeros.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@
 #
 """Keep systemd-boot up-to-date with installed kernels and new systemd-boot versions"""
 from __future__ import print_function
-import re
 import sys
 import os
 import shutil
@@ -32,125 +31,7 @@ import json
 import systemd_boot_manager as sdbm
 
 
-class LooseVersion():
-    """Version numbering for anarchists and software realists.
-    Implements the standard interface for version number classes as
-    described above.  A version number consists of a series of numbers,
-    separated by either periods or strings of letters.  When comparing
-    version numbers, the numeric components will be compared
-    numerically, and the alphabetic components lexically.  The following
-    are all valid version numbers, in no particular order:
 
-        1.5.1
-        1.5.2b2
-        161
-        3.10a
-        8.02
-        3.4j
-        1996.07.12
-        3.2.pl0
-        3.1.1.6
-        2g6
-        11g
-        0.960923
-        2.2beta29
-        1.13++
-        5.5.kw
-        2.0b1pl0
-
-    In fact, there is no such thing as an invalid version number under
-    this scheme; the rules for comparison are simple and predictable,
-    but may not always give the results you want (for some definition
-    of "want").
-
-    ---
-
-    This class is stolen ("stolen") from the distutils module in Python 3.10 standard library.
-    Here, I have manually merged it with it's super class in order to reduce processing time,
-    memory usage, and disk space. The super class wasn't being used for anything else anyways.
-
-    We have done this because we rely on this class for sort()-ing kernel images by version, and with
-    the deprecation of distutils in Python 3.12, we need to find a solution sooner rather than later.
-
-    This prevents further technical debt, reduces dependencies, reduces memory footprint, and allows more
-    visibility of this code in case something goes wrong. This is legitimately the WORST solution for
-    something like this I have EVER come up with. But, unless the setuptools module has something
-    that will work for this better than what we have here, I see no better solution.
-    """
-
-    component_re = re.compile(r'(\d+ | [a-z]+ | \.)', re.VERBOSE)
-
-    def __init__ (self, vstring=None):
-        if vstring:
-            self.parse(vstring)
-
-    def __repr__ (self):
-        return "%s ('%s')" % (self.__class__.__name__, str(self))
-
-    def __eq__(self, other):
-        c = self._cmp(other)
-        if c is NotImplemented:
-            return c
-        return c == 0
-
-    def __lt__(self, other):
-        c = self._cmp(other)
-        if c is NotImplemented:
-            return c
-        return c < 0
-
-    def __le__(self, other):
-        c = self._cmp(other)
-        if c is NotImplemented:
-            return c
-        return c <= 0
-
-    def __gt__(self, other):
-        c = self._cmp(other)
-        if c is NotImplemented:
-            return c
-        return c > 0
-
-    def __ge__(self, other):
-        c = self._cmp(other)
-        if c is NotImplemented:
-            return c
-        return c >= 0
-
-    def parse (self, vstring):
-        # I've given up on thinking I can reconstruct the version string
-        # from the parsed tuple -- so I just store the string here for
-        # use by __str__
-        self.vstring = vstring
-        components = [x for x in self.component_re.split(vstring)
-                              if x and x != '.']
-        for i, obj in enumerate(components):
-            try:
-                components[i] = int(obj)
-            except ValueError:
-                pass
-
-        self.version = components
-
-    def __str__ (self):
-        return self.vstring
-
-    def __repr__ (self):
-        return "LooseVersion ('%s')" % str(self)
-
-    def _cmp (self, other):
-        if isinstance(other, str):
-            other = LooseVersion(other)
-
-        if self.version == other.version:
-            return 0
-        if self.version < other.version:
-            return -1
-        if self.version > other.version:
-            return 1
-
-
-# end class LooseVersion
 VERBOSE = False
 if len(sys.argv) > 1:
     if sys.argv[1] == "-v":
@@ -161,12 +42,6 @@ NEEDED_FILES = ["config", "initrd.img", "System.map", "vmlinuz"]
 
 # Important Dirs/Files
 LOADER_DIR = sdbm.EFI_DIR + "/" + sdbm.DISTRO + "/"
-
-
-# System Settings
-SETTINGS = sdbm.get_settings(VERBOSE)
-
-ROOT_POINTER = sdbm.get_root_pointer(VERBOSE)
 
 
 
@@ -250,8 +125,6 @@ if not sdbm.is_enabled():
     status("You can re-enable systemd-boot-manager with `sudo update-systemd-boot --enable'")
     sys.exit(0)
 
-print(sdbm.STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT" + sdbm.CLEAR)
-
 # Get size of /boot/efi partition
 PARTS = json.loads(subprocess.check_output(["lsblk", "--output",
                                             "TYPE,SIZE,NAME,MOUNTPOINT,UUID",
@@ -279,441 +152,457 @@ for each in PARTS:
 # Do a quick bit of clean up
 del each, PARTS
 
-# Get our kernels
-KERNELS = os.listdir(sdbm.BOOT_DIR)
 
-# Filter down to just the Kernel Images
-for each in range(len(KERNELS) - 1, -1, -1):
-    if "vmlinuz-" not in KERNELS[each]:
-        del KERNELS[each]
-    # Remove dpkg-tmp images
-    elif ".dpkg-tmp" in KERNELS[each][-9:]:
-        del KERNELS[each]
-    else:
-        # These are kernel images. We need to make this their full file path.
-        KERNELS[each] = sdbm.BOOT_DIR + KERNELS[each]
+# Newer versions of systemd-boot handle kernels and initramfs images themselves
+# Instead, we just needa handle configuration
+# Keep the old way, just in case, and dynamically figure out what needs to be done.
+def old_work():
+    # System Settings
+    print(sdbm.STATUS + "UPDATING KERNELS AVAILABLE TO SYSTEMD-BOOT" + sdbm.CLEAR)
+    SETTINGS = sdbm.get_settings(VERBOSE)
 
-# Check to make sure we have kernels to work with
-if len(KERNELS) < 1:
-    error("NO KERNELS FOUND IN /boot")
-    failure(1)
-
-# Perform a nuclear clean to ensure everything is always in perfect sync.
-# We need to make sure we have some error catching here. Hence all the try/except blocks
-try:
-    DEATH_ROW = os.listdir(sdbm.CLEAN_DIR)
-    for each in DEATH_ROW:
-        if each[-5:] == ".conf":
-            try:
-                os.remove(sdbm.CLEAN_DIR + each)
-            except FileNotFoundError:
-                pass
-            except PermissionError:
-                error("CANNOT CLEAN ENTRIES DIRECTORY. RUNNING AS ROOT?")
-                failure(2)
-except FileNotFoundError:
-    warning("PREVIOUS ENTRIES NOT FOUND. NOT CLEANING.")
-
-try:
-    shutil.rmtree(LOADER_DIR)
-except FileNotFoundError:
-    pass
-except PermissionError:
-    error("CANNOT DELETE LOADER DIRECTORY. RUNNING AS ROOT?")
-    failure(2)
-except NotADirectoryError:
-    os.remove(LOADER_DIR)
-
-try:
-    os.mkdir(LOADER_DIR)
-except FileExistsError:
-    pass
-except PermissionError:
-    error("CANNOT REMAKE LOADER DIRECTORY. RUNNING AS ROOT?")
-    failure(2)
+    ROOT_POINTER = sdbm.get_root_pointer(VERBOSE)
 
 
-# Copy the latest kernel files to a consistent place so we can keep
-# using the same loader configuration
-for each in enumerate(KERNELS):
-    KERNELS[each[0]] = KERNELS[each[0]][14:]
+    # Perform a nuclear clean to ensure everything is always in perfect sync.
+    # We need to make sure we have some error catching here. Hence all the try/except blocks
+    try:
+        DEATH_ROW = os.listdir(sdbm.CLEAN_DIR)
+        for each in DEATH_ROW:
+            if each[-5:] == ".conf":
+                try:
+                    os.remove(sdbm.CLEAN_DIR + each)
+                except FileNotFoundError:
+                    pass
+                except PermissionError:
+                    error("CANNOT CLEAN ENTRIES DIRECTORY. RUNNING AS ROOT?")
+                    failure(2)
+    except FileNotFoundError:
+        warning("PREVIOUS ENTRIES NOT FOUND. NOT CLEANING.")
 
-try:
-    del KERNELS[KERNELS.index(".old")]
-except ValueError:
-    pass
+    try:
+        shutil.rmtree(LOADER_DIR)
+    except FileNotFoundError:
+        pass
+    except PermissionError:
+        error("CANNOT DELETE LOADER DIRECTORY. RUNNING AS ROOT?")
+        failure(2)
+    except NotADirectoryError:
+        os.remove(LOADER_DIR)
 
-# Sort remaining kernels, get latest
-KERNELS = sorted(KERNELS, key=LooseVersion)
-LATEST = KERNELS[-1]
-
-# Delete latest kernel from the list, so we don't have two entries for it
-del KERNELS[-1]
-
-# Let the user know what kernel they will be booting with next time
-print(sdbm.NAME + "\t" + sdbm.GREEN + LATEST + sdbm.CLEAR)
-
-# Time for the real work
-# We need to make sure the files we need ACTUALLY EXIST first
-# Otherwise we can end up with a FileNotFoundError
-NEEDED_FILES1 = []
-for FILE in NEEDED_FILES:
-    NEEDED_FILES1.append(sdbm.BOOT_DIR + FILE + "-" + LATEST)
-if check_for_files(NEEDED_FILES1):
-    # We know the files we need exist. Copy them.
-    for each in enumerate(NEEDED_FILES1):
-        try:
-            if VERBOSE:
-                print(NEEDED_FILES1[each[0]] + " -> " + LOADER_DIR + NEEDED_FILES[each[0]])
-            shutil.copyfile(NEEDED_FILES1[each[0]],
-                            LOADER_DIR + NEEDED_FILES[each[0]])
-        except FileExistsError:
-            os.remove(LOADER_DIR + NEEDED_FILES[each[0]])
-            shutil.copyfile(NEEDED_FILES1[each[0]],
-                            LOADER_DIR + NEEDED_FILES[each[0]])
-        except PermissionError:
-            error("CANNOT COPY LOADER FILES. RUNNING AS ROOT?")
-            failure(2)
-else:
-    warning("SOME FILE THAT IS NEEDED DOES NOT EXIST.")
-    warning("IT WILL LIKELY BE GENERATED LATER.")
-    warning("DIFFERING UPDATE.")
-    warning("IF YOU DO NOT GET A SUCCESSFUL UPDATE LATER")
-    warning("CALL `sudo update-systemd-boot' TO MANUALLY")
-    warning("TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES")
-    warning("SOMETHING ELSE MAY BE WRONG.")
-    sys.exit()
-
-# Make sure directory structure is good
-if not os.path.exists(sdbm.CLEAN_DIR):
-    directory = ""
-    for each in sdbm.CLEAN_DIR.split("/"):
-        if directory == "/":
-            directory = directory + each
-        else:
-            directory = directory + "/" + each
-        try:
-            os.mkdir(directory)
-        except FileExistsError:
-            pass
-
-# Generate Config Files
-sdbm.generate_loader_entry(SETTINGS["standard_boot_args"],
-                                           ROOT_POINTER)
-sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"],
-                                                    ROOT_POINTER)
-
-# check loader file
-sdbm.check_loader()
+    try:
+        os.mkdir(LOADER_DIR)
+    except FileExistsError:
+        pass
+    except PermissionError:
+        error("CANNOT REMAKE LOADER DIRECTORY. RUNNING AS ROOT?")
+        failure(2)
 
 
-# Legacy Kernel Support
-LOW_SPACE_BREAK = False
-LOW_SPACE_LIMIT = 83886080
-if len(KERNELS) >= 1:
-    for VERSION in KERNELS:
-        # Let the user know they have a legacy kernel, in case something breaks
-        # And mark it clearly as legacy by putting the "LEGACY" in Blue, in all caps
-        REMAINING = ESP_SIZE - get_esp_part_used()
-        if REMAINING < LOW_SPACE_LIMIT:
-            LOW_SPACE_BREAK = True
-            break
-        print(sdbm.NAME + "\t" + sdbm.GREEN + VERSION + sdbm.BLUE + "\t(LEGACY)" + sdbm.CLEAR)
-        for FILE in NEEDED_FILES:
+    KERNELS = sdbm.get_kernel_versions()
+    LATEST = KERNELS[-1]
+
+    # Delete latest kernel from the list, so we don't have two entries for it
+    del KERNELS[-1]
+
+    # Let the user know what kernel they will be booting with next time
+    print(sdbm.NAME + "\t" + sdbm.GREEN + LATEST + sdbm.CLEAR)
+
+    # Time for the real work
+    # We need to make sure the files we need ACTUALLY EXIST first
+    # Otherwise we can end up with a FileNotFoundError
+    NEEDED_FILES1 = []
+    for FILE in NEEDED_FILES:
+        NEEDED_FILES1.append(sdbm.BOOT_DIR + FILE + "-" + LATEST)
+    if check_for_files(NEEDED_FILES1):
+        # We know the files we need exist. Copy them.
+        for each in enumerate(NEEDED_FILES1):
             try:
                 if VERBOSE:
-                    print(sdbm.BOOT_DIR + FILE + "-" + VERSION + " -> " + LOADER_DIR + FILE + "-" + VERSION)
-                shutil.copyfile(sdbm.BOOT_DIR + FILE + "-" + VERSION,
-                                LOADER_DIR + FILE + "-" + VERSION)
-            except FileNotFoundError:
-                warning("SOME FILE THAT IS NEEDED DOES NOT EXIST.")
-                warning("IT WILL LIKELY BE GENERATED LATER.")
-                warning("DIFFERING UPDATE.")
-                warning("IF YOU DO NOT GET A SUCCESSFUL UPDATE LATER")
-                warning("CALL `sudo update-systemd-boot' TO MANUALLY")
-                warning("TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES")
-                warning("SOMETHING ELSE MAY BE WRONG.")
-                sys.exit()
-            except OSError:
-                warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS.")
-                warning("YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING")
-                warning("ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING.")
-                sys.exit()
+                    print(NEEDED_FILES1[each[0]] + " -> " + LOADER_DIR + NEEDED_FILES[each[0]])
+                shutil.copyfile(NEEDED_FILES1[each[0]],
+                                LOADER_DIR + NEEDED_FILES[each[0]])
             except FileExistsError:
-                os.remove(LOADER_DIR + FILE)
-                shutil.copyfile(sdbm.BOOT_DIR + FILE + "-" + VERSION,
-                                LOADER_DIR + FILE + "-" + VERSION)
+                os.remove(LOADER_DIR + NEEDED_FILES[each[0]])
+                shutil.copyfile(NEEDED_FILES1[each[0]],
+                                LOADER_DIR + NEEDED_FILES[each[0]])
             except PermissionError:
-                sdbm.eprint(sdbm.ERROR, end="")
-                sdbm.eprint("CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?", end="")
-                sdbm.eprint(sdbm.CLEAR)
+                error("CANNOT COPY LOADER FILES. RUNNING AS ROOT?")
                 failure(2)
-        sdbm.generate_loader_entry(SETTINGS["standard_boot_args"],
-                                                   ROOT_POINTER,
-                                                   kernel=VERSION)
-        # Also make sure they have Legacy recovery. Cause it can be a life saver.
-        sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"],
-                                                            ROOT_POINTER,
-                                                            kernel=VERSION)
+    else:
+        warning("SOME FILE THAT IS NEEDED DOES NOT EXIST.")
+        warning("IT WILL LIKELY BE GENERATED LATER.")
+        warning("DIFFERING UPDATE.")
+        warning("IF YOU DO NOT GET A SUCCESSFUL UPDATE LATER")
+        warning("CALL `sudo update-systemd-boot' TO MANUALLY")
+        warning("TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES")
+        warning("SOMETHING ELSE MAY BE WRONG.")
+        sys.exit()
 
-# Finally, we are done! Woot!
-# ... With the Kernels ...
-# Now for systemd-boot
-REMAINING = ESP_SIZE - get_esp_part_used()
-if REMAINING < 200000:
-    error("NOT ENOUGH SPACE ON DRIVE TO UPDATE SYSTEMD-BOOT")
-    failure(1)
-print(sdbm.STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + sdbm.CLEAR)
-os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
-try:
-    cmd = ["bootctl", "update", "--graceful"]
-    if "no-var" in SETTINGS:
-        if SETTINGS["no-var"] is True: # while verbose, we want to ensure this is actually set to true. Any other time, evaluate to False
-            cmd.append("--no-variables")
-    subprocess.check_call(cmd)
-except subprocess.CalledProcessError:
-    error("BOOTCTL HAS HAD AN ERROR!")
-    failure(2)
-
-# check if Compatibility Mode is Enabled
-if SETTINGS["compat_mode"]:
-    # Compatibility Mode is Enabled
-    try:
-        os.mkdir(sdbm.EFI_DIR + "/EFI/Microsoft")
-    except FileExistsError:
-        pass
-    try:
-        os.mkdir(sdbm.EFI_DIR + "/EFI/Microsoft/Boot")
-    except FileExistsError:
-        pass
-    shutil.copy(sdbm.EFI_DIR + "/EFI/systemd/systemd-bootx64.efi", sdbm.EFI_DIR + "/EFI/Microsoft/Boot/bootmgfw.efi")
-else:
-    if os.path.exists(sdbm.EFI_DIR + "/EFI/Microsoft"):
-        shutil.rmtree(sdbm.EFI_DIR + "/EFI/Microsoft")
-
-# Get default bootloader entry
-DEFAULT = subprocess.check_output(["bootctl", "list",
-                                   "--no-pager"]).decode().split("\n")
-
-TOGGLE = False
-for each in DEFAULT:
-    if (("title: " in each) or ("id: " in each)):
-        if "firmware" in each.lower():
-            continue
-        if "(default)" in each.split():
-            TOGGLE = True
-        elif TOGGLE:
-            DEFAULT = each.split()[-1]
-            break
-
-
-# Read Default.conf, find what default entry SHOULD be
-# We do this so that if this entry is lost after a CMOS clear, it can be restored.
-INTENDED_DEFAULT = "#"
-if os.path.isfile(sdbm.DEFAULTS_FILE):
-    with open(sdbm.DEFAULTS_FILE, "r") as conf:
-        INTENDED_DEFAULT = conf.read().split()[0]
-
-# Check default entry, change if needed
-if INTENDED_DEFAULT != "#":
-    if INTENDED_DEFAULT != DEFAULT:
-        warning("WRONG BOOT ENTRY DEFAULT DETECTED")
-        warning("DEFAULT WAS: " + DEFAULT)
-        warning("RESETTING DEFAULT")
-        try:
-            subprocess.check_output(f"bootctl set-default {INTENDED_DEFAULT} 2>&1",
-                                    shell=True)
-        except subprocess.CalledProcessError as e:
-            error("CANNOT SET INTENDED DEFAULT")
-            if "supported boot loader" not in str(e.stdout):
-                failure(1)
-            error("NOT BOOTED WITH SUPPORTED BOOT LOADER")
-
-        success("SUCCESSFULLY RESET DEFAULT BOOT ENTRY")
-
-other_oss = sdbm.get_os_prober()
-
-if LOW_SPACE_BREAK:
-    warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS.")
-    warning("YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING")
-    warning("ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING.")
-    if other_oss != [[""]]:
-        warning("YOU WILL STILL BE ABLE TO BOOT YOUR OTHER OS INSTALLS, BUT")
-        warning("YOU WILL HAVE TO GO THROUGH THE EFI BOOT MANAGER TO DO SO.")
-else:
-    # other operating systems are our last priority. Users can dual-boot using their EFI boot manager if they have to
-    # Windows first since it has a standard EFI layout we can work with on any installation
-    mountpoint = "/tmp/sdm-mountpoint"
-    if "dual-boot" not in SETTINGS:
-        SETTINGS["dual-boot"] = True
-    if SETTINGS["dual-boot"] and not SETTINGS["compat_mode"]:
-        for each in other_oss:
-            systemd = False
-            grub = None
-            if len(each) < 4:
-                continue
-            print(sdbm.STATUS + f"CONFIGURING {each[1]}" + sdbm.CLEAR)
-            if "@" in each[0]:
-                part = each[0].split("@")[0]
+    # Make sure directory structure is good
+    if not os.path.exists(sdbm.CLEAN_DIR):
+        directory = ""
+        for each in sdbm.CLEAN_DIR.split("/"):
+            if directory == "/":
+                directory = directory + each
             else:
-                part = each[0]
-            if not os.path.exists(mountpoint):
-                os.mkdir(mountpoint)
+                directory = directory + "/" + each
             try:
-                __mount__(part, mountpoint)
-            except subprocess.CalledProcessError:
-                __umount__(mountpoint)
-                __mount__(part, mountpoint)
-            if each[2] == "Windows":
-                # copy over Windows files as needed
-                try:
-                    shutil.copytree(mountpoint + "/EFI/Microsoft",
-                                    sdbm.EFI_DIR + "/EFI/Microsoft")
-                except FileExistsError:
-                    # Windows is already set up, delete and reset up in case it's old files
-                    shutil.rmtree(sdbm.EFI_DIR + "/EFI/Microsoft")
-                    shutil.copytree(mountpoint + "/EFI/Microsoft",
-                                    sdbm.EFI_DIR + "/EFI/Microsoft")
+                os.mkdir(directory)
+            except FileExistsError:
+                pass
 
-            else:
+    # Generate Config Files
+    sdbm.generate_loader_entry(SETTINGS["standard_boot_args"],
+                                            ROOT_POINTER)
+    sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"],
+                                                        ROOT_POINTER)
+
+    # check loader file
+    sdbm.check_loader()
+
+
+    # Legacy Kernel Support
+    LOW_SPACE_BREAK = False
+    LOW_SPACE_LIMIT = 83886080
+    if len(KERNELS) >= 1:
+        for VERSION in KERNELS:
+            # Let the user know they have a legacy kernel, in case something breaks
+            # And mark it clearly as legacy by putting the "LEGACY" in Blue, in all caps
+            REMAINING = ESP_SIZE - get_esp_part_used()
+            if REMAINING < LOW_SPACE_LIMIT:
+                LOW_SPACE_BREAK = True
+                break
+            print(sdbm.NAME + "\t" + sdbm.GREEN + VERSION + sdbm.BLUE + "\t(LEGACY)" + sdbm.CLEAR)
+            for FILE in NEEDED_FILES:
                 try:
-                    os.mkdir(sdbm.EFI_DIR + "/EFI/" + each[2])
-                except FileExistsError:
-                    pass
-                # read OS FSTAB
-                try:
-                    with open(mountpoint + "/etc/fstab", "r") as file:
-                        fstab = file.read().split("\n")
+                    if VERBOSE:
+                        print(sdbm.BOOT_DIR + FILE + "-" + VERSION + " -> " + LOADER_DIR + FILE + "-" + VERSION)
+                    shutil.copyfile(sdbm.BOOT_DIR + FILE + "-" + VERSION,
+                                    LOADER_DIR + FILE + "-" + VERSION)
                 except FileNotFoundError:
-                    sdbm.eprint(sdbm.ERROR + "Thought Windows was Linux. Stopping setting up dual-boot now to prevent issues." + sdbm.CLEAR)
-                    break
-                for each1 in fstab:
-                    if len(each1) < 1:
-                        continue
-                    if each1[0] == "#":
-                        continue
-                    if "/boot/efi" in each1.lower():
-                        fstab = each1
-                        break
-                fstab = fstab.replace("\t", " ")
-                end = 0
-                for each1 in fstab:
-                    if each1.isspace():
-                        break
-                    end += 1
-                start = 1
-                for each1 in fstab:
-                    if not each1.isalnum():
-                        break
-                    start += 1
-                # the UUID we need to mount
-                fstab = fstab[start:end]
-                # This SHOULD prevent mounting the same partition in 2 places
-                if fstab == ESP_UUID:
-                    # they match, so do not mount
+                    warning("SOME FILE THAT IS NEEDED DOES NOT EXIST.")
+                    warning("IT WILL LIKELY BE GENERATED LATER.")
+                    warning("DIFFERING UPDATE.")
+                    warning("IF YOU DO NOT GET A SUCCESSFUL UPDATE LATER")
+                    warning("CALL `sudo update-systemd-boot' TO MANUALLY")
+                    warning("TRIGGER THE UPDATE. IF YOU STILL HAVE ISSUES")
+                    warning("SOMETHING ELSE MAY BE WRONG.")
+                    sys.exit()
+                except OSError:
+                    warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS.")
+                    warning("YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING")
+                    warning("ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING.")
+                    sys.exit()
+                except FileExistsError:
+                    os.remove(LOADER_DIR + FILE)
+                    shutil.copyfile(sdbm.BOOT_DIR + FILE + "-" + VERSION,
+                                    LOADER_DIR + FILE + "-" + VERSION)
+                except PermissionError:
+                    sdbm.eprint(sdbm.ERROR, end="")
+                    sdbm.eprint("CANNOT COPY LEGACY LOADER FILES. RUNNING AS ROOT?", end="")
+                    sdbm.eprint(sdbm.CLEAR)
+                    failure(2)
+            sdbm.generate_loader_entry(SETTINGS["standard_boot_args"],
+                                                    ROOT_POINTER,
+                                                    kernel=VERSION)
+            # Also make sure they have Legacy recovery. Cause it can be a life saver.
+            sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"],
+                                                                ROOT_POINTER,
+                                                                kernel=VERSION)
+
+    # Finally, we are done! Woot!
+    # ... With the Kernels ...
+    # Now for systemd-boot
+    update_systemd_boot(SETTINGS)
+
+    # check if Compatibility Mode is Enabled
+    if SETTINGS["compat_mode"]:
+        # Compatibility Mode is Enabled
+        try:
+            os.mkdir(sdbm.EFI_DIR + "/EFI/Microsoft")
+        except FileExistsError:
+            pass
+        try:
+            os.mkdir(sdbm.EFI_DIR + "/EFI/Microsoft/Boot")
+        except FileExistsError:
+            pass
+        shutil.copy(sdbm.EFI_DIR + "/EFI/systemd/systemd-bootx64.efi", sdbm.EFI_DIR + "/EFI/Microsoft/Boot/bootmgfw.efi")
+    else:
+        if os.path.exists(sdbm.EFI_DIR + "/EFI/Microsoft"):
+            shutil.rmtree(sdbm.EFI_DIR + "/EFI/Microsoft")
+
+    # Get default bootloader entry
+    DEFAULT = subprocess.check_output(["bootctl", "list",
+                                    "--no-pager"]).decode().split("\n")
+
+    TOGGLE = False
+    for each in DEFAULT:
+        if (("title: " in each) or ("id: " in each)):
+            if "firmware" in each.lower():
+                continue
+            if "(default)" in each.split():
+                TOGGLE = True
+            elif TOGGLE:
+                DEFAULT = each.split()[-1]
+                break
+
+
+    # Read Default.conf, find what default entry SHOULD be
+    # We do this so that if this entry is lost after a CMOS clear, it can be restored.
+    INTENDED_DEFAULT = "#"
+    if os.path.isfile(sdbm.DEFAULTS_FILE):
+        with open(sdbm.DEFAULTS_FILE, "r") as conf:
+            INTENDED_DEFAULT = conf.read().split()[0]
+
+    # Check default entry, change if needed
+    if INTENDED_DEFAULT != "#":
+        if INTENDED_DEFAULT != DEFAULT:
+            warning("WRONG BOOT ENTRY DEFAULT DETECTED")
+            warning("DEFAULT WAS: " + DEFAULT)
+            warning("RESETTING DEFAULT")
+            try:
+                subprocess.check_output(f"bootctl set-default {INTENDED_DEFAULT} 2>&1",
+                                        shell=True)
+            except subprocess.CalledProcessError as e:
+                error("CANNOT SET INTENDED DEFAULT")
+                if "supported boot loader" not in str(e.stdout):
+                    failure(1)
+                error("NOT BOOTED WITH SUPPORTED BOOT LOADER")
+
+            success("SUCCESSFULLY RESET DEFAULT BOOT ENTRY")
+
+    other_oss = sdbm.get_os_prober()
+
+    if LOW_SPACE_BREAK:
+        warning("NOT ENOUGH SPACE ON /boot/efi TO SET UP ALL LEGACY KERNELS.")
+        warning("YOUR SYSTEM WILL STILL BOOT, BUT WILL NOT BE ABLE TO BOOT USING")
+        warning("ALL INSTALLED KERNELS. UNINSTALL SOME KERNELS TO FIX THIS WARNING.")
+        if other_oss != [[""]]:
+            warning("YOU WILL STILL BE ABLE TO BOOT YOUR OTHER OS INSTALLS, BUT")
+            warning("YOU WILL HAVE TO GO THROUGH THE EFI BOOT MANAGER TO DO SO.")
+    else:
+        # other operating systems are our last priority. Users can dual-boot using their EFI boot manager if they have to
+        # Windows first since it has a standard EFI layout we can work with on any installation
+        mountpoint = "/tmp/sdm-mountpoint"
+        if "dual-boot" not in SETTINGS:
+            SETTINGS["dual-boot"] = True
+        if SETTINGS["dual-boot"] and not SETTINGS["compat_mode"]:
+            for each in other_oss:
+                systemd = False
+                grub = None
+                if len(each) < 4:
                     continue
-                blkid = subprocess.check_output(["blkid"]).decode().split("\n")
-                for each1 in blkid:
-                    if fstab in each1:
-                        fstab = each1.split(":")[0]
-                        break
-                # swap mounted partitions
-                __umount__(mountpoint)
-                __mount__(fstab, mountpoint)
-                # NOW we need to figure out what bootloader is in use
-                dirs = os.listdir(mountpoint + "/EFI")
-                if "systemd" in dirs:
-                    # know they are using systemd-boot as well. We can just clone files and make life easy
-                    systemd = True
-                    dirs = os.listdir(mountpoint)
-                    del dirs[dirs.index("EFI")]
-                    del dirs[dirs.index("loader")]
-                    for each in dirs:
-                        shutil.copytree(mountpoint + "/" + each,
-                                        sdbm.EFI_DIR + "/" + each)
-                    dirs = os.listdir(mountpoint + "/loader/entries")
-                    for each1 in dirs:
-                        count = 0
-                        # copy over unique files
-                        # there is likely a faster way to do this, but this way should at least:
-                        # 1: be reliable
-                        # 2: prevent file collisions
-                        # 3: prevent duplicate systemd-boot entries
-                        while True:
-                            if count == 0:
-                                if not os.path.exists(sdbm.CLEAN_DIR + each1):
-                                    shutil.copy(mountpoint + "/loader/entries/" + each1,
-                                                sdbm.CLEAN_DIR + each1)
-                                    break
-                                with open(mountpoint + "/loader/entries/" + each1,
-                                        "r") as file:
-                                    contents1 = file.read()
-                                with open(sdbm.CLEAN_DIR + each1, "r") as file:
-                                    contents2 = file.read()
-                                if contents1 == contents2:
-                                    # The files match, skip
-                                    break
-                            else:
-                                name = f"-{count}.".join(each1.split("."))
-                                if not os.path.exists(sdbm.CLEAN_DIR + name):
-                                    shutil.copy(mountpoint + "/loader/entries/" + each1,
-                                                sdbm.CLEAN_DIR + name)
-                                    break
-                                with open(mountpoint + "/loader/entries/" + each1,
-                                        "r") as file:
-                                    contents1 = file.read()
-                                with open(sdbm.CLEAN_DIR + name, "r") as file:
-                                    contents2 = file.read()
-                                if contents1 == contents2:
-                                    # The files match, skip
-                                    break
-                            count += 1
+                print(sdbm.STATUS + f"CONFIGURING {each[1]}" + sdbm.CLEAR)
+                if "@" in each[0]:
+                    part = each[0].split("@")[0]
                 else:
-                    # systemd-boot is NOT being used
+                    part = each[0]
+                if not os.path.exists(mountpoint):
+                    os.mkdir(mountpoint)
+                try:
+                    __mount__(part, mountpoint)
+                except subprocess.CalledProcessError:
+                    __umount__(mountpoint)
+                    __mount__(part, mountpoint)
+                if each[2] == "Windows":
+                    # copy over Windows files as needed
                     try:
-                        del dirs[dirs.index("BOOT")]
-                    except ValueError:
-                        pass
+                        shutil.copytree(mountpoint + "/EFI/Microsoft",
+                                        sdbm.EFI_DIR + "/EFI/Microsoft")
+                    except FileExistsError:
+                        # Windows is already set up, delete and reset up in case it's old files
+                        shutil.rmtree(sdbm.EFI_DIR + "/EFI/Microsoft")
+                        shutil.copytree(mountpoint + "/EFI/Microsoft",
+                                        sdbm.EFI_DIR + "/EFI/Microsoft")
+
+                else:
                     try:
-                        del dirs[dirs.index("Linux")]
-                    except ValueError:
+                        os.mkdir(sdbm.EFI_DIR + "/EFI/" + each[2])
+                    except FileExistsError:
                         pass
-                    for each1 in dirs:
-                        dirs2 = os.listdir(mountpoint + "/EFI/" + each1)
-                        for each2 in dirs2:
-                            if each2.lower() == "grubx64.efi":
-                                grub = "/EFI/" + each1 + "/" + each2
-                        if grub is not None:
-                            count = 0
-                            src = mountpoint + "/EFI/" + each1
-                            dest = sdbm.EFI_DIR + "/EFI/" + each1
-                            try:
-                                shutil.copytree(src, dest)
-                            except FileExistsError:
-                                shutil.rmtree(dest)
-                                shutil.copytree(src, dest)
+                    # read OS FSTAB
+                    try:
+                        with open(mountpoint + "/etc/fstab", "r") as file:
+                            fstab = file.read().split("\n")
+                    except FileNotFoundError:
+                        sdbm.eprint(sdbm.ERROR + "Thought Windows was Linux. Stopping setting up dual-boot now to prevent issues." + sdbm.CLEAR)
+                        break
+                    for each1 in fstab:
+                        if len(each1) < 1:
+                            continue
+                        if each1[0] == "#":
+                            continue
+                        if "/boot/efi" in each1.lower():
+                            fstab = each1
                             break
-                    # At this point we have detected either Windows, systemd-boot, or GRUB.
-                    # That should cover most Linux OSs and Windows which are the biggest issues.
-
-            # make loader file
-            if not systemd:
-                with open(sdbm.CLEAN_DIR + each[2] + ".conf", "w+") as file:
-                    file.write(f"title {each[1]}\n")
-                    if grub is None:
-                        # This SHOULD be Windows. An OS like MacOS or a Linux distro using
-                        # an unsupported bootloader will result an an empty entry.
-                        if each[2].lower() == "windows":
-                            file.write("efi /EFI/Microsoft/Boot/bootmgfw.efi")
+                    fstab = fstab.replace("\t", " ")
+                    end = 0
+                    for each1 in fstab:
+                        if each1.isspace():
+                            break
+                        end += 1
+                    start = 1
+                    for each1 in fstab:
+                        if not each1.isalnum():
+                            break
+                        start += 1
+                    # the UUID we need to mount
+                    fstab = fstab[start:end]
+                    # This SHOULD prevent mounting the same partition in 2 places
+                    if fstab == ESP_UUID:
+                        # they match, so do not mount
+                        continue
+                    blkid = subprocess.check_output(["blkid"]).decode().split("\n")
+                    for each1 in blkid:
+                        if fstab in each1:
+                            fstab = each1.split(":")[0]
+                            break
+                    # swap mounted partitions
+                    __umount__(mountpoint)
+                    __mount__(fstab, mountpoint)
+                    # NOW we need to figure out what bootloader is in use
+                    dirs = os.listdir(mountpoint + "/EFI")
+                    if "systemd" in dirs:
+                        # know they are using systemd-boot as well. We can just clone files and make life easy
+                        systemd = True
+                        dirs = os.listdir(mountpoint)
+                        del dirs[dirs.index("EFI")]
+                        del dirs[dirs.index("loader")]
+                        for each in dirs:
+                            shutil.copytree(mountpoint + "/" + each,
+                                            sdbm.EFI_DIR + "/" + each)
+                        dirs = os.listdir(mountpoint + "/loader/entries")
+                        for each1 in dirs:
+                            count = 0
+                            # copy over unique files
+                            # there is likely a faster way to do this, but this way should at least:
+                            # 1: be reliable
+                            # 2: prevent file collisions
+                            # 3: prevent duplicate systemd-boot entries
+                            while True:
+                                if count == 0:
+                                    if not os.path.exists(sdbm.CLEAN_DIR + each1):
+                                        shutil.copy(mountpoint + "/loader/entries/" + each1,
+                                                    sdbm.CLEAN_DIR + each1)
+                                        break
+                                    with open(mountpoint + "/loader/entries/" + each1,
+                                            "r") as file:
+                                        contents1 = file.read()
+                                    with open(sdbm.CLEAN_DIR + each1, "r") as file:
+                                        contents2 = file.read()
+                                    if contents1 == contents2:
+                                        # The files match, skip
+                                        break
+                                else:
+                                    name = f"-{count}.".join(each1.split("."))
+                                    if not os.path.exists(sdbm.CLEAN_DIR + name):
+                                        shutil.copy(mountpoint + "/loader/entries/" + each1,
+                                                    sdbm.CLEAN_DIR + name)
+                                        break
+                                    with open(mountpoint + "/loader/entries/" + each1,
+                                            "r") as file:
+                                        contents1 = file.read()
+                                    with open(sdbm.CLEAN_DIR + name, "r") as file:
+                                        contents2 = file.read()
+                                    if contents1 == contents2:
+                                        # The files match, skip
+                                        break
+                                count += 1
                     else:
-                        # they are using GRUB. Chain-load it.
-                        file.write(f"linux {grub}")
-                    # ending newline
-                    file.write("\n")
-    elif SETTINGS["dual-boot"] and SETTINGS["compat_mode"]:
-        sdbm.eprint(f"{ sdbm.WARNING }Dual-boot and Compatibility Mode are both enabled. Only one may be enabled at a time.{sdbm.CLEAR}")
-        sdbm.eprint(f"{ sdbm.WARNING }Compatibility Mode will take priority and is treated as enabled.{sdbm.CLEAR}")
-        sdbm.eprint(f"{ sdbm.WARNING }Dual-boot will be treated as disabled.{sdbm.CLEAR}")
+                        # systemd-boot is NOT being used
+                        try:
+                            del dirs[dirs.index("BOOT")]
+                        except ValueError:
+                            pass
+                        try:
+                            del dirs[dirs.index("Linux")]
+                        except ValueError:
+                            pass
+                        for each1 in dirs:
+                            dirs2 = os.listdir(mountpoint + "/EFI/" + each1)
+                            for each2 in dirs2:
+                                if each2.lower() == "grubx64.efi":
+                                    grub = "/EFI/" + each1 + "/" + each2
+                            if grub is not None:
+                                count = 0
+                                src = mountpoint + "/EFI/" + each1
+                                dest = sdbm.EFI_DIR + "/EFI/" + each1
+                                try:
+                                    shutil.copytree(src, dest)
+                                except FileExistsError:
+                                    shutil.rmtree(dest)
+                                    shutil.copytree(src, dest)
+                                break
+                        # At this point we have detected either Windows, systemd-boot, or GRUB.
+                        # That should cover most Linux OSs and Windows which are the biggest issues.
 
-clean_up()
-success("SYSTEMD-BOOT UPDATES COMPLETE!")
+                # make loader file
+                if not systemd:
+                    with open(sdbm.CLEAN_DIR + each[2] + ".conf", "w+") as file:
+                        file.write(f"title {each[1]}\n")
+                        if grub is None:
+                            # This SHOULD be Windows. An OS like MacOS or a Linux distro using
+                            # an unsupported bootloader will result an an empty entry.
+                            if each[2].lower() == "windows":
+                                file.write("efi /EFI/Microsoft/Boot/bootmgfw.efi")
+                        else:
+                            # they are using GRUB. Chain-load it.
+                            file.write(f"linux {grub}")
+                        # ending newline
+                        file.write("\n")
+        elif SETTINGS["dual-boot"] and SETTINGS["compat_mode"]:
+            sdbm.eprint(f"{ sdbm.WARNING }Dual-boot and Compatibility Mode are both enabled. Only one may be enabled at a time.{sdbm.CLEAR}")
+            sdbm.eprint(f"{ sdbm.WARNING }Compatibility Mode will take priority and is treated as enabled.{sdbm.CLEAR}")
+            sdbm.eprint(f"{ sdbm.WARNING }Dual-boot will be treated as disabled.{sdbm.CLEAR}")
+
+    clean_up()
+    success("SYSTEMD-BOOT UPDATES COMPLETE!")
+
+
+# The new way of doing things
+def new_work(version):
+    # System Settings
+    status("Detected newer version of systemd-boot. Just regenerating config files...")
+    SETTINGS = sdbm.get_settings(VERBOSE)
+    ROOT_POINTER = sdbm.get_root_pointer(VERBOSE)
+    if version == sdbm.get_kernel_versions()[-1]:
+        sdbm.generate_loader_entry(SETTINGS["standard_boot_args"], ROOT_POINTER, func=sdbm.get_new_conf_file_contents)
+        sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"], ROOT_POINTER, func=sdbm.get_new_conf_file_contents)
+    else:
+        sdbm.generate_loader_entry(SETTINGS["standard_boot_args"], ROOT_POINTER, version=version, func=sdbm.get_new_conf_file_contents)
+        sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"], ROOT_POINTER, version=version, func=sdbm.get_new_conf_file_contents)
+    success(f"Config files generated for {version}")
+    update_systemd_boot(SETTINGS)
+    success("SYSTEMD-BOOT UPDATES COMPLETE!")
+
+
+def update_systemd_boot(settings):
+    """Update systemd-boot image on EFI partition"""
+    REMAINING = ESP_SIZE - get_esp_part_used()
+    if REMAINING < 200000:
+        error("NOT ENOUGH SPACE ON DRIVE TO UPDATE SYSTEMD-BOOT")
+        failure(1)
+    print(sdbm.STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + sdbm.CLEAR)
+    os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
+    try:
+        cmd = ["bootctl", "update", "--graceful"]
+        if "no-var" in settings:
+            if settings["no-var"] is True: # while verbose, we want to ensure this is actually set to true. Any other time, evaluate to False
+                cmd.append("--no-variables")
+        subprocess.check_call(cmd)
+    except subprocess.CalledProcessError:
+        error("BOOTCTL HAS HAD AN ERROR!")
+        failure(2)
+
+
+dirs = os.listdir(sdbm.EFI_DIR)
+del dirs[dirs.index("EFI")]
+del dirs[dirs.index("loader")]
+del dirs[dirs.index(sdbm.DISTRO)]
+rand_dir = sdbm.EFI_DIR + "/" + dirs[0]
+contents = os.listdir(rand_dir)
+if len(contents) == 0:
+    old_work()
+else:
+    new_work(sys.argv[1])

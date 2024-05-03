@@ -1,10 +1,11 @@
 Package: systemd-boot-manager
-Version: 0.6.6-alpha6
-Maintainer: Thomas Castleman <contact@draugeros.org>
+Version: 0.7.7-alpha7
+Maintainer: Thomas Castleman <batcastle@draugeros.org>
 Homepage: https://github.com/drauger-os-development/systemd-boot-manager
 Section: admin
 Architecture: all
 Priority: optional
-Depends: coreutils (>=8.28-1ubuntu1), util-linux (>=2.31.1-0.4ubuntu3.3), systemd-boot, procps (>=2:3.3.12-3ubuntu1.1), grep (>=3.1-2), python3, python3-distro, os-prober
+Depends: coreutils (>=8.28-1ubuntu1), util-linux (>=2.31.1-0.4ubuntu3.3), systemd, procps (>=2:3.3.12-3ubuntu1.1), grep (>=3.1-2), python3, python3-distro, os-prober
+Recommends: systemd-boot
 Description: systemd-boot and kernel version manager
  Update installed systemd-boot and the kernel used by it the respective packages are updated.

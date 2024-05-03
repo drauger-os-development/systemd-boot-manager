@@ -3,7 +3,7 @@
 #
 #  __init__.py
 #
-#  Copyright 2023 Thomas Castleman <batcastle@draugeros.org>
+#  Copyright 2024 Thomas Castleman <batcastle@draugeros.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -27,6 +27,8 @@ import sys
 import subprocess as sp
 import json
 import distro
+import re
+from inspect import signature as sig
 
 
 GREEN = "\033[92m"
@@ -58,11 +60,31 @@ ROOT_FLAGS = "quiet splash"
 RECOVERY_FLAGS = "ro recovery nomodeset"
 
 
-def get_conf_file_contents(root_pointer: str, boot_args: str, state=None):
+def get_conf_file_contents(root_pointer: str, boot_args: str, state=None) -> str:
     """Get conf file contents"""
     contents = ["title  " + DISTRO,
                 "linux   /" + DISTRO + "/vmlinuz",
                 "initrd  /" + DISTRO + "/initrd.img",
+                "options root=" + root_pointer + " " + boot_args]
+    # this is a bit verbose, but None evaluates to False, so we need to be careful
+    if state is True:
+        return contents
+    if state is False:
+        return tuple(contents)
+    return "\n".join(contents)
+
+
+def get_new_conf_file_contents(root_pointer: str, boot_args: str, version: str, state=None) -> str:
+    """Get conf file contents with new file locations"""
+    dirs = os.listdir(EFI_DIR)
+    del dirs[dirs.index("EFI")]
+    del dirs[dirs.index("loader")]
+    del dirs[dirs.index(DISTRO)]
+    rand_dir = EFI_DIR + "/" + dirs[0]
+    del dirs
+    contents = ["title  " + DISTRO,
+                "linux   /" + rand_dir + "/" + version + "/linux",
+                "initrd  /" + rand_dir + "/" + version + "/initrd.img-" + version,
                 "options root=" + root_pointer + " " + boot_args]
     # this is a bit verbose, but None evaluates to False, so we need to be careful
     if state is True:
@@ -388,58 +410,89 @@ def get_UUID(verbose, uuid="partuuid"):
 
 
 def generate_loader_entry(boot_args: str, root_pointer: str,
-                          kernel="latest"):
+                          kernel="latest", func=get_conf_file_contents):
     """Generate a given bootloader entry"""
+    flag = False
+    if "version" in sig(func).parameters:
+        flag = True
+        if kernel.lower() == "latest":
+            contents = func(root_pointer, boot_args, get_kernel_versions()[0], state=True)
+        else:
+            contents = func(root_pointer, boot_args, kernel, state=True)
+    else:
+        contents = func(root_pointer, boot_args, state=True)
     if kernel.lower() == "latest":
         with open("".join(CONF_FILE), "w+") as output:
-            output.write(get_conf_file_contents(root_pointer, boot_args))
+            for each in contents:
+                output.write(each + "\n")
     else:
-        contents = get_conf_file_contents(root_pointer, boot_args,
-                                              state=True)
         with open(("-" + kernel).join(CONF_FILE), "w+") as output:
             line = 0
             for each in contents:
                 if line == 0:
-                    output.write(each + " " + kernel + "\n")
-                elif line in (1, 2):
-                    output.write(each + "-" + kernel + "\n")
+                    output.write(each + " " + kernel)
+                if not flag:
+                    if line in (1, 2):
+                        output.write(each + "-" + kernel)
+                    else:
+                        output.write(each)
                 else:
-                    output.write(each + " " + boot_args)
+                    output.write(each)
+                output.write("\n")
                 line += 1
 
 
 def generate_recovery_loader_entry(boot_args: str, root_pointer: str,
-                                   kernel="latest"):
+                                   kernel="latest", func=get_conf_file_contents):
     """Generate a given recovery bootloader entry"""
-    contents = get_conf_file_contents(root_pointer, boot_args,
-                                              state=True)
-
+    flag = False
+    if "version" in sig(func).parameters:
+        flag = True
+        if kernel.lower() == "latest":
+            contents = func(root_pointer, boot_args, get_kernel_versions()[0], state=True)
+        else:
+            contents = func(root_pointer, boot_args, kernel, state=True)
+    else:
+        contents = func(root_pointer, boot_args, state=True)
     if kernel.lower() == "latest":
         with open("_Recovery".join(CONF_FILE), "w+") as output:
             for each in enumerate(contents):
                 if each[0] == 0:
-                    output.write(contents[each[0]] + " Recovery")
-                elif each[0] == len(contents) - 1:
-                    output.write(contents[each[0]])
+                    output.write(each[1] + " Recovery")
                 else:
-                    output.write(contents[each[0]])
+                    output.write(each[1])
                 output.write("\n")
     else:
-        with open(("-" + kernel + "_Recovery").join(CONF_FILE),
-                  "w+") as output:
+        with open(("-" + kernel + "_Recovery").join(CONF_FILE), "w+") as output:
             line = 0
             for each in contents:
                 if line == 0:
-                    output.write(each + " " + kernel + " Recovery\n")
-                elif line in (1, 2):
-                    output.write(each + "-" + kernel + "\n")
+                    output.write(each + " " + kernel + " Recovery")
+                if not flag:
+                    if line in (1, 2):
+                        output.write(each + "-" + kernel)
+                    else:
+                        output.write(each)
                 else:
                     output.write(each)
+                output.write("\n")
                 line += 1
 
 
 def get_root_pointer(VERBOSE):
-    """Get root pointer"""
+    """Get root pointer
+
+        A root pointer is whatever you pass as `root` to the kernel command line.
+        Example:
+
+        root=UUID=<UUID here>
+
+        or
+
+        root=LABEL=ROOT
+
+        The part after `root=` is the root pointer.
+        """
     SETTINGS = get_settings(VERBOSE)
     if os.path.exists("/etc/systemd-boot-manager/root_device.conf"):
         # this is the easiest solution for the user, but takes more processing for us
@@ -497,3 +550,146 @@ def get_root_pointer(VERBOSE):
             sys.exit(2)
         ROOT_POINTER = f"PARTUUID={ root }"
     return ROOT_POINTER
+
+
+def get_kernel_versions():
+    """Get all kernel versions"""
+    KERNELS = os.listdir(BOOT_DIR)
+    # Filter down to just the Kernel Images
+    for each in range(len(KERNELS) - 1, -1, -1):
+        if "vmlinuz-" not in KERNELS[each]:
+            del KERNELS[each]
+        # Remove dpkg-tmp images
+        elif ".dpkg-tmp" in KERNELS[each][-9:]:
+            del KERNELS[each]
+    # Check to make sure we have kernels to work with
+    if len(KERNELS) < 1:
+        error("NO KERNELS FOUND IN /boot")
+        failure(1)
+    for each in KERNELS:
+        KERNELS[KERNELS.index(each)] = each.split("-")[-1]
+
+    # Sort remaining kernels, get latest
+    KERNELS = sorted(KERNELS, key=LooseVersion)
+    return KERNELS
+
+
+class LooseVersion():
+    """Version numbering for anarchists and software realists.
+    Implements the standard interface for version number classes as
+    described above.  A version number consists of a series of numbers,
+    separated by either periods or strings of letters.  When comparing
+    version numbers, the numeric components will be compared
+    numerically, and the alphabetic components lexically.  The following
+    are all valid version numbers, in no particular order:
+
+        1.5.1
+        1.5.2b2
+        161
+        3.10a
+        8.02
+        3.4j
+        1996.07.12
+        3.2.pl0
+        3.1.1.6
+        2g6
+        11g
+        0.960923
+        2.2beta29
+        1.13++
+        5.5.kw
+        2.0b1pl0
+
+    In fact, there is no such thing as an invalid version number under
+    this scheme; the rules for comparison are simple and predictable,
+    but may not always give the results you want (for some definition
+    of "want").
+
+    ---
+
+    This class is stolen ("stolen") from the distutils module in Python 3.10 standard library.
+    Here, I have manually merged it with it's super class in order to reduce processing time,
+    memory usage, and disk space. The super class wasn't being used for anything else anyways.
+
+    We have done this because we rely on this class for sort()-ing kernel images by version, and with
+    the deprecation of distutils in Python 3.12, we need to find a solution sooner rather than later.
+
+    This prevents further technical debt, reduces dependencies, reduces memory footprint, and allows more
+    visibility of this code in case something goes wrong. This is legitimately the WORST solution for
+    something like this I have EVER come up with. But, unless the setuptools module has something
+    that will work for this better than what we have here, I see no better solution.
+    """
+
+    component_re = re.compile(r'(\d+ | [a-z]+ | \.)', re.VERBOSE)
+
+    def __init__ (self, vstring=None):
+        if vstring:
+            self.parse(vstring)
+
+    def __repr__ (self):
+        return "%s ('%s')" % (self.__class__.__name__, str(self))
+
+    def __eq__(self, other):
+        c = self._cmp(other)
+        if c is NotImplemented:
+            return c
+        return c == 0
+
+    def __lt__(self, other):
+        c = self._cmp(other)
+        if c is NotImplemented:
+            return c
+        return c < 0
+
+    def __le__(self, other):
+        c = self._cmp(other)
+        if c is NotImplemented:
+            return c
+        return c <= 0
+
+    def __gt__(self, other):
+        c = self._cmp(other)
+        if c is NotImplemented:
+            return c
+        return c > 0
+
+    def __ge__(self, other):
+        c = self._cmp(other)
+        if c is NotImplemented:
+            return c
+        return c >= 0
+
+    def parse (self, vstring):
+        # I've given up on thinking I can reconstruct the version string
+        # from the parsed tuple -- so I just store the string here for
+        # use by __str__
+        self.vstring = vstring
+        components = [x for x in self.component_re.split(vstring)
+                              if x and x != '.']
+        for i, obj in enumerate(components):
+            try:
+                components[i] = int(obj)
+            except ValueError:
+                pass
+
+        self.version = components
+
+    def __str__ (self):
+        return self.vstring
+
+    def __repr__ (self):
+        return "LooseVersion ('%s')" % str(self)
+
+    def _cmp (self, other):
+        if isinstance(other, str):
+            other = LooseVersion(other)
+
+        if self.version == other.version:
+            return 0
+        if self.version < other.version:
+            return -1
+        if self.version > other.version:
+            return 1
+
+
+# end class LooseVersion
