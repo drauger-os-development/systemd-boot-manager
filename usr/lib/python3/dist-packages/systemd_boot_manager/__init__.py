@@ -80,11 +80,11 @@ def get_new_conf_file_contents(root_pointer: str, boot_args: str, version: str, 
     del dirs[dirs.index("EFI")]
     del dirs[dirs.index("loader")]
     del dirs[dirs.index(DISTRO)]
-    rand_dir = EFI_DIR + "/" + dirs[0]
+    rand_dir = dirs[0]
     del dirs
-    contents = ["title  " + DISTRO,
-                "linux   /" + rand_dir + "/" + version + "/linux",
-                "initrd  /" + rand_dir + "/" + version + "/initrd.img-" + version,
+    contents = ["title   " + DISTRO,
+                "linux   " + rand_dir + "/" + version + "/linux",
+                "initrd  " + rand_dir + "/" + version + "/initrd.img-" + version,
                 "options root=" + root_pointer + " " + boot_args]
     # this is a bit verbose, but None evaluates to False, so we need to be careful
     if state is True:

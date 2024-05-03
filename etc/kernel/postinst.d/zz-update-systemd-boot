@@ -574,6 +574,15 @@ def new_work(version):
         sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"], ROOT_POINTER, version=version, func=sdbm.get_new_conf_file_contents)
     success(f"Config files generated for {version}")
     update_systemd_boot(SETTINGS)
+    dirs = os.listdir(sdbm.EFI_DIR)
+    del dirs[dirs.index("EFI")]
+    del dirs[dirs.index("loader")]
+    del dirs[dirs.index(sdbm.DISTRO)]
+    rand_dir = dirs[0]
+    contents = os.listdir(sdbm.CLEAN_DIR)
+    for each in contents:
+        if rand_dir in each:
+            os.remove(sdbm.CLEAN_DIR + f"/{each}")
     success("SYSTEMD-BOOT UPDATES COMPLETE!")
 
 
