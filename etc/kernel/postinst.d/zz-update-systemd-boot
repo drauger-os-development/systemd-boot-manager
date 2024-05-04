@@ -570,8 +570,8 @@ def new_work(version):
         sdbm.generate_loader_entry(SETTINGS["standard_boot_args"], ROOT_POINTER, func=sdbm.get_new_conf_file_contents)
         sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"], ROOT_POINTER, func=sdbm.get_new_conf_file_contents)
     else:
-        sdbm.generate_loader_entry(SETTINGS["standard_boot_args"], ROOT_POINTER, version=version, func=sdbm.get_new_conf_file_contents)
-        sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"], ROOT_POINTER, version=version, func=sdbm.get_new_conf_file_contents)
+        sdbm.generate_loader_entry(SETTINGS["standard_boot_args"], ROOT_POINTER, kernel=version, func=sdbm.get_new_conf_file_contents)
+        sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"], ROOT_POINTER, kernel=version, func=sdbm.get_new_conf_file_contents)
     success(f"Config files generated for {version}")
     update_systemd_boot(SETTINGS)
     dirs = os.listdir(sdbm.EFI_DIR)
