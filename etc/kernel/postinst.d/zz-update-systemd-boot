@@ -561,11 +561,11 @@ def old_work():
 
 
 # The new way of doing things
-def new_work(version):
+def new_work(version, verbose):
     # System Settings
     status("Detected newer version of systemd-boot. Just regenerating config files...")
-    SETTINGS = sdbm.get_settings(VERBOSE)
-    ROOT_POINTER = sdbm.get_root_pointer(VERBOSE)
+    SETTINGS = sdbm.get_settings(verbose)
+    ROOT_POINTER = sdbm.get_root_pointer(verbose)
     if version == sdbm.get_kernel_versions()[-1]:
         sdbm.generate_loader_entry(SETTINGS["standard_boot_args"], ROOT_POINTER, func=sdbm.get_new_conf_file_contents)
         sdbm.generate_recovery_loader_entry(SETTINGS["recovery_args"], ROOT_POINTER, func=sdbm.get_new_conf_file_contents)
@@ -614,4 +614,14 @@ contents = os.listdir(rand_dir)
 if len(contents) == 0:
     old_work()
 else:
-    new_work(sys.argv[1])
+    if sys.argv[1][0] == "-":
+        if sys.argv[1] in ("-v", "--verbose"):
+            kernels = sdbm.get_kernel_versions()
+            for each in kernels:
+                new_work(each, True)
+        else:
+            kernels = sdbm.get_kernel_versions()
+            for each in kernels:
+                new_work(each, False)
+    else:
+        new_work(sys.argv[1], False)

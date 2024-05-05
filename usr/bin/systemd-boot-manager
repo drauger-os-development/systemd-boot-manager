@@ -33,7 +33,7 @@ import systemd_boot_manager as sdbm
 
 # Set up
 UUID_FILE = sdbm.CONFIG_DIR + "/root_device.conf"
-VERSION = "0.8.0-alpha8"
+VERSION = "0.8.1-alpha8"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config
@@ -240,9 +240,9 @@ def dual_boot(arg, verbose):
 
 def update(verbose):
     """Trigger systemd-boot update"""
-    command = ["/etc/kernel/postinst.d/zz-update-systemd-boot"]
+    command = ["/etc/kernel/postinst.d/zz-update-systemd-boot", "-"]
     if verbose:
-        command.append("-v")
+        command.insert(1, "-v")
     if not sdbm.is_root():
         sdbm.eprint(sdbm.ERROR + "You need to be run this program as root to update systemd-boot." + sdbm.CLEAR)
         sys.exit(2)
