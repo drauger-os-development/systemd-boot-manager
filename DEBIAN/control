@@ -1,5 +1,5 @@
 Package: systemd-boot-manager
-Version: 0.8.1-alpha8
+Version: 0.8.2-alpha8
 Maintainer: Thomas Castleman <batcastle@draugeros.org>
 Homepage: https://github.com/drauger-os-development/systemd-boot-manager
 Section: admin

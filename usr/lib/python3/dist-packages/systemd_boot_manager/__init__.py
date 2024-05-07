@@ -412,6 +412,7 @@ def get_UUID(verbose, uuid="partuuid"):
 def generate_loader_entry(boot_args: str, root_pointer: str,
                           kernel="latest", func=get_conf_file_contents):
     """Generate a given bootloader entry"""
+    # This flag variable controls whether or not the new method is to be used.
     flag = False
     if "version" in sig(func).parameters:
         flag = True
@@ -431,6 +432,9 @@ def generate_loader_entry(boot_args: str, root_pointer: str,
             for each in contents:
                 if line == 0:
                     output.write(each + " " + kernel)
+                    output.write("\n")
+                    line += 1
+                    continue
                 if not flag:
                     if line in (1, 2):
                         output.write(each + "-" + kernel)
@@ -468,6 +472,9 @@ def generate_recovery_loader_entry(boot_args: str, root_pointer: str,
             for each in contents:
                 if line == 0:
                     output.write(each + " " + kernel + " Recovery")
+                    output.write("\n")
+                    line += 1
+                    continue
                 if not flag:
                     if line in (1, 2):
                         output.write(each + "-" + kernel)
