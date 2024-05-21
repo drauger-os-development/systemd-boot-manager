@@ -670,6 +670,7 @@ class LooseVersion():
         # I've given up on thinking I can reconstruct the version string
         # from the parsed tuple -- so I just store the string here for
         # use by __str__
+        # TODO: by abrifq: make sure it can get the correct version from xanmod ones too
         self.vstring = vstring
         components = [x for x in self.component_re.split(vstring)
                               if x and x != '.']
@@ -690,13 +691,22 @@ class LooseVersion():
     def _cmp (self, other):
         if isinstance(other, str):
             other = LooseVersion(other)
-
-        if self.version == other.version:
-            return 0
-        if self.version < other.version:
-            return -1
-        if self.version > other.version:
-            return 1
+        if all(isinstance(part, int) for part in self.version) and all(isinstance(part, int) for part in other.version):
+            if self.version == other.version:
+                return 0
+            if self.version < other.version:
+                return -1
+            if self.version > other.version:
+                return 1
+        else:
+            str_self_version = [str(part) for part in self.version]
+            str_other_version = [str(part) for part in other.version]
+            if str_self_version == str_other_version:
+                return 0
+            if str_self_version < str_other_version:
+                return -1
+            if str_self_version > str_other_version:
+                return 1
 
 
 # end class LooseVersion
