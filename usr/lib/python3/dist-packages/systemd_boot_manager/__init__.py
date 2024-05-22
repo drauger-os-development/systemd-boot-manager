@@ -574,7 +574,11 @@ def get_kernel_versions():
         error("NO KERNELS FOUND IN /boot")
         failure(1)
     for each in KERNELS:
-        KERNELS[KERNELS.index(each)] = each.split("-")[-1]
+        if "xanmod" in each:
+            # TODO @batcastle please find a better solution, dude
+            KERNELS[KERNELS.index(each)] = "-".join(each.split("-")[1:])
+        else:
+            KERNELS[KERNELS.index(each)] = each.split("-")[-1]
 
     # Sort remaining kernels, get latest
     KERNELS = sorted(KERNELS, key=LooseVersion)
