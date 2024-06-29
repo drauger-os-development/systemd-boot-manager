@@ -573,12 +573,24 @@ def get_kernel_versions():
     if len(KERNELS) < 1:
         error("NO KERNELS FOUND IN /boot")
         failure(1)
+    kernel_verts = {}
     for each in KERNELS:
-        KERNELS[KERNELS.index(each)] = each.split("-")[-1]
+        vert = each.split("-")[1:]
+        if len(vert) > 1:
+            patch_version = 1
+            while f"{ vert[0] }.{ patch_version }" in kernel_verts:
+                patch_version += 1
+            key = f"{ vert[0] }.{ patch_version }"
+        else:
+            key = vert[0]
+        kernel_verts[key] = "-".join(vert)
 
     # Sort remaining kernels, get latest
-    KERNELS = sorted(KERNELS, key=LooseVersion)
-    return KERNELS
+    KERNELS = sorted(list(kernel_verts.keys()), key=LooseVersion)
+    output = []
+    for each in KERNELS:
+        output.append(kernel_verts[each])
+    return output
 
 
 class LooseVersion():
@@ -690,13 +702,22 @@ class LooseVersion():
     def _cmp (self, other):
         if isinstance(other, str):
             other = LooseVersion(other)
-
-        if self.version == other.version:
-            return 0
-        if self.version < other.version:
-            return -1
-        if self.version > other.version:
-            return 1
+        if all(isinstance(part, int) for part in self.version) and all(isinstance(part, int) for part in other.version):
+            if self.version == other.version:
+                return 0
+            if self.version < other.version:
+                return -1
+            if self.version > other.version:
+                return 1
+        else:
+            str_self_version = [str(part) for part in self.version]
+            str_other_version = [str(part) for part in other.version]
+            if str_self_version == str_other_version:
+                return 0
+            if str_self_version < str_other_version:
+                return -1
+            if str_self_version > str_other_version:
+                return 1
 
 
 # end class LooseVersion
