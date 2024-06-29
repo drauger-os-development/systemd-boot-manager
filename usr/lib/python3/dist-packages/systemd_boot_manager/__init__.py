@@ -573,16 +573,24 @@ def get_kernel_versions():
     if len(KERNELS) < 1:
         error("NO KERNELS FOUND IN /boot")
         failure(1)
+    kernel_verts = {}
     for each in KERNELS:
-        if "xanmod" in each:
-            # TODO @batcastle please find a better solution, dude
-            KERNELS[KERNELS.index(each)] = "-".join(each.split("-")[1:])
+        vert = each.split("-")[1:]
+        if len(vert) > 1:
+            patch_version = 1
+            while f"{ vert[0] }.{ patch_version }" in kernel_verts:
+                patch_version += 1
+            key = f"{ vert[0] }.{ patch_version }"
         else:
-            KERNELS[KERNELS.index(each)] = each.split("-")[-1]
+            key = vert[0]
+        kernel_verts[key] = "-".join(vert)
 
     # Sort remaining kernels, get latest
-    KERNELS = sorted(KERNELS, key=LooseVersion)
-    return KERNELS
+    KERNELS = sorted(list(kernel_verts.keys()), key=LooseVersion)
+    output = []
+    for each in KERNELS:
+        output.append(kernel_verts[each])
+    return output
 
 
 class LooseVersion():
@@ -674,7 +682,6 @@ class LooseVersion():
         # I've given up on thinking I can reconstruct the version string
         # from the parsed tuple -- so I just store the string here for
         # use by __str__
-        # TODO: by abrifq: make sure it can get the correct version from xanmod ones too
         self.vstring = vstring
         components = [x for x in self.component_re.split(vstring)
                               if x and x != '.']
