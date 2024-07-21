@@ -592,7 +592,7 @@ def update_systemd_boot(settings):
     if REMAINING < 200000:
         error("NOT ENOUGH SPACE ON DRIVE TO UPDATE SYSTEMD-BOOT")
         failure(1)
-    print(sdbm.STATUS + "UPDATING SYSTEMD-BOOT VERSIONS" + sdbm.CLEAR)
+    status("UPDATING SYSTEMD-BOOT VERSIONS")
     os.putenv("SYSTEMD_RELAX_ESP_CHECKS", "1")
     try:
         cmd = ["bootctl", "update", "--graceful"]
@@ -621,8 +621,19 @@ try:
 except ValueError:
     # If not in list, we can ignore error
     pass
-rand_dir = sdbm.EFI_DIR + "/" + dirs[0]
-contents = os.listdir(rand_dir)
+try:
+    rand_dir = sdbm.EFI_DIR + "/" + dirs[0]
+    contents = os.listdir(rand_dir)
+except IndexError:
+    """
+    If we don't see anything else in that folder, then this is likely a fresh install. If so, then we don't want to do anything as
+    there are likely other things that need to be done first.
+
+    Throw up a warning in case a user has installed this and tried to run it without installing systemd-boot,
+    then exit with a 0 exit code
+    """
+    warning("It appears `systemd-boot` is not currently installed. As such, systemd-boot-manager cannot run. Please make sure systemd-boot is installed and try again.")
+    exit(0)
 if len(contents) == 0:
     old_work()
 else:
