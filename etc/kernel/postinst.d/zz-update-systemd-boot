@@ -606,9 +606,21 @@ def update_systemd_boot(settings):
 
 
 dirs = os.listdir(sdbm.EFI_DIR)
-del dirs[dirs.index("EFI")]
-del dirs[dirs.index("loader")]
-del dirs[dirs.index(sdbm.DISTRO)]
+try:
+    del dirs[dirs.index("EFI")]
+except ValueError:
+    # If not in list, we can ignore error
+    pass
+try:
+    del dirs[dirs.index("loader")]
+except ValueError:
+    # If not in list, we can ignore error
+    pass
+try:
+    del dirs[dirs.index(sdbm.DISTRO)]
+except ValueError:
+    # If not in list, we can ignore error
+    pass
 rand_dir = sdbm.EFI_DIR + "/" + dirs[0]
 contents = os.listdir(rand_dir)
 if len(contents) == 0:
