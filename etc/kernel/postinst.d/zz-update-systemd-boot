@@ -581,7 +581,6 @@ def new_work(version, verbose):
     del dirs[dirs.index(sdbm.DISTRO)]
     contents = os.listdir(sdbm.CLEAN_DIR)
     allowed = sdbm.get_kernel_versions()
-    print(allowed)
     for each in contents:
         good = False
         for each1 in allowed:

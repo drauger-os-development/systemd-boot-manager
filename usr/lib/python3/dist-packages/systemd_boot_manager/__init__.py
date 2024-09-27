@@ -417,7 +417,7 @@ def generate_loader_entry(boot_args: str, root_pointer: str,
     if "version" in sig(func).parameters:
         flag = True
         if kernel.lower() == "latest":
-            contents = func(root_pointer, boot_args, get_kernel_versions()[0], state=True)
+            contents = func(root_pointer, boot_args, get_kernel_versions()[-1], state=True)
         else:
             contents = func(root_pointer, boot_args, kernel, state=True)
     else:
@@ -453,7 +453,7 @@ def generate_recovery_loader_entry(boot_args: str, root_pointer: str,
     if "version" in sig(func).parameters:
         flag = True
         if kernel.lower() == "latest":
-            contents = func(root_pointer, boot_args, get_kernel_versions()[0], state=True)
+            contents = func(root_pointer, boot_args, get_kernel_versions()[-1], state=True)
         else:
             contents = func(root_pointer, boot_args, kernel, state=True)
     else:
