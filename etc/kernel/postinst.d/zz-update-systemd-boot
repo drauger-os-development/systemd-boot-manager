@@ -564,6 +564,7 @@ def old_work():
 def new_work(version, verbose):
     # System Settings
     status("Detected newer version of systemd-boot. Just regenerating config files...")
+    status("Clearing old config files...")
     SETTINGS = sdbm.get_settings(verbose)
     ROOT_POINTER = sdbm.get_root_pointer(verbose)
     if version == sdbm.get_kernel_versions()[-1]:
@@ -578,11 +579,18 @@ def new_work(version, verbose):
     del dirs[dirs.index("EFI")]
     del dirs[dirs.index("loader")]
     del dirs[dirs.index(sdbm.DISTRO)]
-    rand_dir = dirs[0]
     contents = os.listdir(sdbm.CLEAN_DIR)
+    allowed = sdbm.get_kernel_versions()
+    print(allowed)
     for each in contents:
-        if rand_dir in each:
-            os.remove(sdbm.CLEAN_DIR + f"/{each}")
+        good = False
+        for each1 in allowed:
+            if each1 in each:
+                good = True
+                break
+        if not good:
+            if (f"{sdbm.DISTRO}.conf" != each) and (f"{sdbm.DISTRO}_Recovery.conf" != each):
+                os.remove(sdbm.CLEAN_DIR + f"/{each}")
     success("SYSTEMD-BOOT UPDATES COMPLETE!")
 
 
