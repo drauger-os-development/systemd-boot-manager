@@ -3,7 +3,7 @@
 #
 #  systemd-boot-manager
 #
-#  Copyright 2024 Thomas Castleman <batcastle@draugeros.org>
+#  Copyright 2025 Thomas Castleman <batcastle@draugeros.org>
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -32,8 +32,7 @@ import systemd_boot_manager as sdbm
 
 
 # Set up
-UUID_FILE = sdbm.CONFIG_DIR + "/root_device.conf"
-VERSION = "0.8.7-alpha8"
+VERSION = "0.8.8-alpha8"
 HELP = f"""systemd-boot-manager, Version: { VERSION }
 
         --apply-loader-config                            Apply loader.conf config
@@ -424,7 +423,7 @@ def check(verbose):
         sdbm.eprint(f"{ sdbm.WARNING }EFI variables are disabled.{ sdbm.CLEAR }")
     if verbose:
         print("Checking if using new or old settings format...")
-    if os.path.exists(f"{ sdbm.CONFIG_DIR }/root_device.conf"):
+    if os.path.exists(sdbm.ROOT_DEVICE_FILE):
         if verbose:
             print("Detected new settings format.")
         # compare to root partition in lsblk and indicated in loader.conf
@@ -441,7 +440,7 @@ def check(verbose):
             report["DEFAULT BOOTLOADER ENTRY"] = sdbm.check_default_entry(verbose=verbose)
         # get key for root parition
         try:
-            with open(f"/boot/efi/loader/entries/{ sdbm.DISTRO }.conf", "r") as file:
+            with open(f"{sdbm.CLEAN_DIR}{ sdbm.DISTRO }.conf", "r") as file:
                 output = file.read().split("\n")
             for each in output:
                 if "options" in each:
